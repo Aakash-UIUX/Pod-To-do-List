@@ -160,6 +160,25 @@ app.post('/api/auth/signin', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { email, name, password } = req.body;
+    if (!email || !name || !password) return res.status(400).json({ error: 'All fields required' });
+    if (password.length < 4) return res.status(400).json({ error: 'Password must be at least 4 characters' });
+
+    const r = await getDB().execute({ sql: 'SELECT id, name FROM users WHERE email=?', args: [email.toLowerCase()] });
+    if (r.rows.length === 0) return res.status(404).json({ error: 'No account found with that email' });
+
+    // Verify name matches (case-insensitive)
+    if (r.rows[0].name.toLowerCase().trim() !== name.toLowerCase().trim()) {
+      return res.status(403).json({ error: 'Name does not match the registered account' });
+    }
+
+    await getDB().execute({ sql: 'UPDATE users SET password_hash=? WHERE id=?', args: [hashPass(password), r.rows[0].id] });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/auth/me', auth, async (req, res) => {
   const r = await getDB().execute({ sql: 'SELECT id, name, email FROM users WHERE id=?', args: [req.user.id] });
   if (r.rows.length === 0) return res.status(404).json({ error: 'User not found' });

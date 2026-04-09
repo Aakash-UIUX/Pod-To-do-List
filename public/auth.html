@@ -80,6 +80,7 @@ body {
   <div class="tabs">
     <button class="tab active" id="tab-signin" onclick="showTab('signin')">Sign In</button>
     <button class="tab" id="tab-signup" onclick="showTab('signup')">Sign Up</button>
+    <button class="tab" id="tab-reset" onclick="showTab('reset')">Reset</button>
   </div>
 
   <div id="error" class="error-msg"></div>
@@ -114,6 +115,27 @@ body {
     </div>
     <button type="submit" class="btn btn-primary" id="btn-signup"><i data-lucide="user-plus" style="width:16px;height:16px;"></i> Sign Up</button>
   </form>
+
+  <!-- Reset Password Form -->
+  <form id="form-reset" class="hidden" onsubmit="handleReset(event)">
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="rs-email" required placeholder="you@example.com">
+    </div>
+    <div class="field">
+      <label>Your Registered Name (for verification)</label>
+      <input type="text" id="rs-name" required placeholder="Exact name you signed up with">
+    </div>
+    <div class="field">
+      <label>New Password</label>
+      <input type="password" id="rs-password" required minlength="4" placeholder="Min 4 characters">
+    </div>
+    <div class="field">
+      <label>Confirm New Password</label>
+      <input type="password" id="rs-password2" required minlength="4" placeholder="Repeat new password">
+    </div>
+    <button type="submit" class="btn btn-primary" id="btn-reset"><i data-lucide="key-round" style="width:16px;height:16px;"></i> Reset Password</button>
+  </form>
 </div>
 
 <script>
@@ -126,8 +148,10 @@ if (localStorage.getItem('mindmap_token')) {
 function showTab(tab) {
   document.getElementById('tab-signin').classList.toggle('active', tab === 'signin');
   document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+  document.getElementById('tab-reset').classList.toggle('active', tab === 'reset');
   document.getElementById('form-signin').classList.toggle('hidden', tab !== 'signin');
   document.getElementById('form-signup').classList.toggle('hidden', tab !== 'signup');
+  document.getElementById('form-reset').classList.toggle('hidden', tab !== 'reset');
   hideMessages();
 }
 
@@ -221,6 +245,36 @@ function handleSignUp(e) {
     btn.innerHTML = '<i data-lucide="user-plus" style="width:16px;height:16px;"></i> Sign Up';
     lucide.createIcons();
     showError(err.message || 'Network error. Check your connection.');
+  });
+}
+
+function handleReset(e) {
+  e.preventDefault();
+  hideMessages();
+  var password = document.getElementById('rs-password').value;
+  var password2 = document.getElementById('rs-password2').value;
+  if (password !== password2) { showError('Passwords do not match'); return; }
+
+  var btn = document.getElementById('btn-reset');
+  btn.disabled = true;
+  btn.innerHTML = 'Resetting...';
+
+  var email = document.getElementById('rs-email').value;
+  var name = document.getElementById('rs-name').value;
+
+  apiCall('/api/auth/reset-password', { email: email, name: name, password: password })
+  .then(function(r) {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="key-round" style="width:16px;height:16px;"></i> Reset Password';
+    lucide.createIcons();
+    if (!r.ok) return showError(r.data.error || 'Reset failed');
+    showSuccess('Password reset! You can now sign in.');
+    setTimeout(function() { showTab('signin'); }, 1500);
+  }).catch(function(err) {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="key-round" style="width:16px;height:16px;"></i> Reset Password';
+    lucide.createIcons();
+    showError(err.message || 'Network error.');
   });
 }
 </script>
