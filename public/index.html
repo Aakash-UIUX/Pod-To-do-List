@@ -1087,6 +1087,10 @@ function confirmModal() {
     if (!v) return;
     rootTitle = v;
     render(); save();
+    // Also rename the pod tab to match project name
+    authFetch('/api/pods/' + currentPodId, {
+      method: 'PUT', body: JSON.stringify({ name: v })
+    }).then(function() { loadPods(); });
     toast('Project renamed');
   }
   else if (modalMode === 'add-section') {
