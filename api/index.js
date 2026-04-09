@@ -94,12 +94,26 @@ async function auth(req, res, next) {
   }
 }
 
-async function podAccess(req, res, next) {
+// Read access — any authenticated user can view any pod
+async function podRead(req, res, next) {
+  const podId = parseInt(req.params.podId);
+  if (!podId) return res.status(400).json({ error: 'Invalid pod' });
+  const r = await getDB().execute({ sql: 'SELECT id FROM pods WHERE id=?', args: [podId] });
+  if (r.rows.length === 0) return res.status(404).json({ error: 'Pod not found' });
+  const m = await getDB().execute({ sql: 'SELECT user_id FROM pod_members WHERE pod_id=? AND user_id=?', args: [podId, req.user.id] });
+  req.podId = podId;
+  req.isMember = m.rows.length > 0;
+  next();
+}
+
+// Write access — only pod members can edit
+async function podWrite(req, res, next) {
   const podId = parseInt(req.params.podId);
   if (!podId) return res.status(400).json({ error: 'Invalid pod' });
   const r = await getDB().execute({ sql: 'SELECT user_id FROM pod_members WHERE pod_id=? AND user_id=?', args: [podId, req.user.id] });
-  if (r.rows.length === 0) return res.status(403).json({ error: 'Not a member of this pod' });
+  if (r.rows.length === 0) return res.status(403).json({ error: 'Only pod members can edit' });
   req.podId = podId;
+  req.isMember = true;
   next();
 }
 
@@ -216,15 +230,18 @@ app.get('/api/auth/me', auth, async (req, res) => {
 // POD ROUTES
 // ══════════════════════════════════════
 
+// List ALL pods — everyone can see, with isMember flag
 app.get('/api/pods', auth, async (req, res) => {
   const r = await getDB().execute({
     sql: `SELECT p.id, p.name, p.created_by,
-      (SELECT COUNT(*) FROM pod_members WHERE pod_id=p.id) as member_count
-      FROM pods p JOIN pod_members pm ON pm.pod_id=p.id
-      WHERE pm.user_id=? ORDER BY p.name`,
+      (SELECT COUNT(*) FROM pod_members WHERE pod_id=p.id) as member_count,
+      (SELECT COUNT(*) FROM pod_members WHERE pod_id=p.id AND user_id=?) as is_member
+      FROM pods p ORDER BY p.name`,
     args: [req.user.id]
   });
-  res.json(r.rows);
+  res.json(r.rows.map(function(row) {
+    return { id: row.id, name: row.name, created_by: row.created_by, member_count: row.member_count, isMember: row.is_member > 0 };
+  }));
 });
 
 app.post('/api/pods', auth, async (req, res) => {
@@ -239,14 +256,14 @@ app.post('/api/pods', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/pods/:podId', auth, podAccess, async (req, res) => {
+app.put('/api/pods/:podId', auth, podWrite, async (req, res) => {
   const name = (req.body.name || '').trim();
   if (!name) return res.status(400).json({ error: 'Name required' });
   await getDB().execute({ sql: 'UPDATE pods SET name=? WHERE id=?', args: [name, req.podId] });
   res.json({ ok: true });
 });
 
-app.delete('/api/pods/:podId', auth, podAccess, async (req, res) => {
+app.delete('/api/pods/:podId', auth, podWrite, async (req, res) => {
   const r = await getDB().execute({ sql: 'SELECT created_by FROM pods WHERE id=?', args: [req.podId] });
   if (r.rows.length === 0 || r.rows[0].created_by !== req.user.id) return res.status(403).json({ error: 'Only owner can delete' });
   await getDB().execute({ sql: 'DELETE FROM snapshots WHERE pod_id=?', args: [req.podId] });
@@ -258,7 +275,7 @@ app.delete('/api/pods/:podId', auth, podAccess, async (req, res) => {
 
 // ── Pod Members ──
 
-app.get('/api/pods/:podId/members', auth, podAccess, async (req, res) => {
+app.get('/api/pods/:podId/members', auth, podRead, async (req, res) => {
   const r = await getDB().execute({
     sql: `SELECT u.id, u.name, u.email, pm.role, pm.joined_at
       FROM pod_members pm JOIN users u ON u.id=pm.user_id
@@ -268,7 +285,7 @@ app.get('/api/pods/:podId/members', auth, podAccess, async (req, res) => {
   res.json(r.rows);
 });
 
-app.post('/api/pods/:podId/invite', auth, podAccess, async (req, res) => {
+app.post('/api/pods/:podId/invite', auth, podWrite, async (req, res) => {
   try {
     const email = (req.body.email || '').toLowerCase().trim();
     if (!email) return res.status(400).json({ error: 'Email required' });
@@ -281,7 +298,7 @@ app.post('/api/pods/:podId/invite', auth, podAccess, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/pods/:podId/members/:userId', auth, podAccess, async (req, res) => {
+app.delete('/api/pods/:podId/members/:userId', auth, podWrite, async (req, res) => {
   const userId = parseInt(req.params.userId);
   const r = await getDB().execute({ sql: 'SELECT created_by FROM pods WHERE id=?', args: [req.podId] });
   if (r.rows.length > 0 && r.rows[0].created_by === userId) return res.status(400).json({ error: "Can't remove the pod owner" });
@@ -291,19 +308,19 @@ app.delete('/api/pods/:podId/members/:userId', auth, podAccess, async (req, res)
 
 // ── Modules ──
 
-app.get('/api/pods/:podId/modules', auth, podAccess, async (req, res) => {
+app.get('/api/pods/:podId/modules', auth, podRead, async (req, res) => {
   const r = await getDB().execute({ sql: 'SELECT name FROM modules WHERE pod_id=? ORDER BY name', args: [req.podId] });
   res.json(r.rows.map(m => m.name));
 });
 
-app.post('/api/pods/:podId/modules', auth, podAccess, async (req, res) => {
+app.post('/api/pods/:podId/modules', auth, podWrite, async (req, res) => {
   const name = (req.body.name || '').trim();
   if (!name) return res.status(400).json({ error: 'Name required' });
   await getDB().execute({ sql: 'INSERT OR IGNORE INTO modules(pod_id, name) VALUES(?,?)', args: [req.podId, name] });
   res.json({ ok: true });
 });
 
-app.put('/api/pods/:podId/modules/:name', auth, podAccess, async (req, res) => {
+app.put('/api/pods/:podId/modules/:name', auth, podWrite, async (req, res) => {
   const newName = (req.body.name || '').trim();
   if (!newName) return res.status(400).json({ error: 'Name required' });
   await getDB().execute({ sql: 'UPDATE modules SET name=? WHERE pod_id=? AND name=?', args: [newName, req.podId, req.params.name] });
@@ -311,7 +328,7 @@ app.put('/api/pods/:podId/modules/:name', auth, podAccess, async (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/pods/:podId/modules/:name', auth, podAccess, async (req, res) => {
+app.delete('/api/pods/:podId/modules/:name', auth, podWrite, async (req, res) => {
   await getDB().execute({ sql: 'DELETE FROM snapshots WHERE pod_id=? AND module=?', args: [req.podId, req.params.name] });
   await getDB().execute({ sql: 'DELETE FROM modules WHERE pod_id=? AND name=?', args: [req.podId, req.params.name] });
   res.json({ ok: true });
@@ -319,27 +336,28 @@ app.delete('/api/pods/:podId/modules/:name', auth, podAccess, async (req, res) =
 
 // ── Data ──
 
-app.get('/api/pods/:podId/data/:module/dates', auth, podAccess, async (req, res) => {
+app.get('/api/pods/:podId/data/:module/dates', auth, podRead, async (req, res) => {
   const r = await getDB().execute({ sql: 'SELECT date FROM snapshots WHERE pod_id=? AND module=? ORDER BY date DESC', args: [req.podId, req.params.module] });
   res.json(r.rows.map(r => r.date));
 });
 
-app.get('/api/pods/:podId/data/:module/:date', auth, podAccess, async (req, res) => {
+app.get('/api/pods/:podId/data/:module/:date', auth, podRead, async (req, res) => {
   const { module, date } = req.params;
+  const canEdit = req.isMember;
   const exact = await getDB().execute({ sql: 'SELECT root_title, data FROM snapshots WHERE pod_id=? AND module=? AND date=?', args: [req.podId, module, date] });
   if (exact.rows.length > 0) {
     const r = exact.rows[0];
-    return res.json({ rootTitle: r.root_title, modules: JSON.parse(r.data), _saved: true, _from: null });
+    return res.json({ rootTitle: r.root_title, modules: JSON.parse(r.data), _saved: true, _from: null, canEdit: canEdit });
   }
   const prev = await getDB().execute({ sql: 'SELECT root_title, data, date FROM snapshots WHERE pod_id=? AND module=? AND date<=? ORDER BY date DESC LIMIT 1', args: [req.podId, module, date] });
   if (prev.rows.length > 0) {
     const r = prev.rows[0];
-    return res.json({ rootTitle: r.root_title, modules: JSON.parse(r.data), _saved: false, _from: r.date });
+    return res.json({ rootTitle: r.root_title, modules: JSON.parse(r.data), _saved: false, _from: r.date, canEdit: canEdit });
   }
-  res.json({ rootTitle: 'My Project', modules: [], _saved: false, _from: null });
+  res.json({ rootTitle: 'My Project', modules: [], _saved: false, _from: null, canEdit: canEdit });
 });
 
-app.post('/api/pods/:podId/data/:module/:date', auth, podAccess, async (req, res) => {
+app.post('/api/pods/:podId/data/:module/:date', auth, podWrite, async (req, res) => {
   const rootTitle = req.body.rootTitle || 'My Project';
   const data = JSON.stringify(req.body.modules || []);
   await getDB().execute({ sql: 'INSERT OR IGNORE INTO modules(pod_id, name) VALUES(?,?)', args: [req.podId, req.params.module] });
@@ -350,7 +368,7 @@ app.post('/api/pods/:podId/data/:module/:date', auth, podAccess, async (req, res
   res.json({ ok: true });
 });
 
-app.delete('/api/pods/:podId/data/:module/:date', auth, podAccess, async (req, res) => {
+app.delete('/api/pods/:podId/data/:module/:date', auth, podWrite, async (req, res) => {
   await getDB().execute({ sql: 'DELETE FROM snapshots WHERE pod_id=? AND module=? AND date=?', args: [req.podId, req.params.module, req.params.date] });
   res.json({ ok: true });
 });

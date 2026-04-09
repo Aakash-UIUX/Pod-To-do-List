@@ -362,6 +362,15 @@ body.readonly #btn-add-section { display: none !important; }
 body.readonly #btn-save { display: none !important; }
 body.readonly .root-node { cursor: default; }
 
+/* ── View-only (non-member) ── */
+body.viewonly .branch-actions,
+body.viewonly .leaf-actions,
+body.viewonly .add-task-btn,
+body.viewonly .drag-handle,
+body.viewonly #btn-add-section,
+body.viewonly #btn-save { display: none !important; }
+body.viewonly .root-node { cursor: default; }
+
 /* ── User menu ── */
 .user-menu { display:flex; align-items:center; gap:8px; margin-left:8px; }
 .user-name { font-size:0.8rem; font-weight:500; color:var(--muted-foreground); }
@@ -459,11 +468,6 @@ body.readonly .root-node { cursor: default; }
 
   <div class="sep"></div>
 
-  <div class="module-tabs" id="module-tabs"></div>
-  <button class="bar-btn" onclick="openCreateModule()" title="New Module"><i data-lucide="plus" style="width:13px;height:13px;"></i></button>
-
-  <div class="sep"></div>
-
   <label><i data-lucide="link" style="width:12px;height:12px;"></i></label>
   <input type="text" class="url-input" id="local-url" placeholder="Local URL" onchange="saveUrls()">
   <button class="bar-btn" onclick="copyUrl('local-url')" title="Copy"><i data-lucide="copy" style="width:12px;height:12px;"></i></button>
@@ -557,6 +561,7 @@ function loadDate(date) {
       dataSaved = data._saved === true;
       dataCarriedFrom = data._from || null;
       hasUnsavedChanges = false;
+      updateCanEdit(data.canEdit !== false);
       updateReadOnly();
       updateSaveIndicator();
       render();
@@ -640,8 +645,10 @@ function loadPods() {
         currentPodId = pods[0].id;
         localStorage.setItem('mindmap_pod_id', currentPodId);
       }
+      var pod = pods.find(function(p) { return p.id === currentPodId; });
+      updateCanEdit(pod ? pod.isMember : false);
       renderPodTabs();
-      loadModulesForPod();
+      loadDate(currentDate);
     });
 }
 
@@ -649,8 +656,11 @@ function renderPodTabs() {
   var c = document.getElementById('pod-tabs');
   c.innerHTML = allPods.map(function(p) {
     var active = p.id === currentPodId ? ' active' : '';
-    return '<button class="pod-tab' + active + '" onclick="switchPod(' + p.id + ')" ondblclick="openRenamePod(' + p.id + ',\'' + esc(p.name) + '\')" title="Double-click to rename">' +
-      lucideIcon('hexagon', 12) + ' ' + esc(p.name) +
+    var icon = p.isMember ? 'hexagon' : 'eye';
+    var dblClick = p.isMember ? ' ondblclick="openRenamePod(' + p.id + ',\'' + esc(p.name) + '\')"' : '';
+    var title = p.isMember ? 'Member — double-click to rename' : 'View only';
+    return '<button class="pod-tab' + active + '" onclick="switchPod(' + p.id + ')"' + dblClick + ' title="' + title + '">' +
+      lucideIcon(icon, 12) + ' ' + esc(p.name) +
       '<span style="font-size:0.6rem;opacity:0.7;margin-left:2px;">(' + p.member_count + ')</span></button>';
   }).join('');
   refreshIcons();
@@ -662,9 +672,19 @@ function switchPod(id) {
   localStorage.setItem('mindmap_pod_id', id);
   currentModule = 'default';
   localStorage.setItem('mindmap_current_module', 'default');
+  var pod = allPods.find(function(p) { return p.id === id; });
+  updateCanEdit(pod ? pod.isMember : false);
   renderPodTabs();
-  loadModulesForPod();
-  toast('Switched pod');
+  loadDate(currentDate);
+  toast(pod && pod.isMember ? 'Switched to ' + pod.name : 'Viewing ' + (pod ? pod.name : 'pod') + ' (read-only)');
+}
+
+function updateCanEdit(canEdit) {
+  if (canEdit) {
+    document.body.classList.remove('viewonly');
+  } else {
+    document.body.classList.add('viewonly');
+  }
 }
 
 function openCreatePod() {
