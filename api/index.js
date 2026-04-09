@@ -26,44 +26,42 @@ let dbReady = false;
 
 async function ensureDB() {
   if (dbReady) return;
-  await db.executeMultiple(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-    CREATE TABLE IF NOT EXISTS pods (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      created_by INTEGER,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-    CREATE TABLE IF NOT EXISTS pod_members (
-      pod_id INTEGER NOT NULL,
-      user_id INTEGER NOT NULL,
-      role TEXT NOT NULL DEFAULT 'member',
-      joined_at TEXT DEFAULT (datetime('now')),
-      PRIMARY KEY(pod_id, user_id)
-    );
-    CREATE TABLE IF NOT EXISTS modules (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      pod_id INTEGER NOT NULL DEFAULT 0,
-      name TEXT NOT NULL,
-      UNIQUE(pod_id, name)
-    );
-    CREATE TABLE IF NOT EXISTS snapshots (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      pod_id INTEGER NOT NULL DEFAULT 0,
-      module TEXT NOT NULL DEFAULT 'default',
-      date TEXT NOT NULL,
-      root_title TEXT NOT NULL DEFAULT 'My Project',
-      data TEXT NOT NULL DEFAULT '[]',
-      saved_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(pod_id, module, date)
-    );
-  `);
+  await db.execute(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`);
+  await db.execute(`CREATE TABLE IF NOT EXISTS pods (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    created_by INTEGER,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`);
+  await db.execute(`CREATE TABLE IF NOT EXISTS pod_members (
+    pod_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    joined_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY(pod_id, user_id)
+  )`);
+  await db.execute(`CREATE TABLE IF NOT EXISTS modules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pod_id INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL,
+    UNIQUE(pod_id, name)
+  )`);
+  await db.execute(`CREATE TABLE IF NOT EXISTS snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pod_id INTEGER NOT NULL DEFAULT 0,
+    module TEXT NOT NULL DEFAULT 'default',
+    date TEXT NOT NULL,
+    root_title TEXT NOT NULL DEFAULT 'My Project',
+    data TEXT NOT NULL DEFAULT '[]',
+    saved_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(pod_id, module, date)
+  )`);
   dbReady = true;
 }
 
@@ -124,9 +122,8 @@ app.post('/api/auth/signup', async (req, res) => {
     const token = signToken(user);
 
     // Create default pod
-    await db.execute({ sql: 'INSERT INTO pods(name, created_by) VALUES(?,?)', args: ['My Pod', user.id] });
-    const podR = await db.execute('SELECT last_insert_rowid() as id');
-    const podId = podR.rows[0].id;
+    const podInsert = await db.execute({ sql: 'INSERT INTO pods(name, created_by) VALUES(?,?)', args: ['My Pod', user.id] });
+    const podId = Number(podInsert.lastInsertRowid);
     await db.execute({ sql: 'INSERT INTO pod_members(pod_id, user_id, role) VALUES(?,?,?)', args: [podId, user.id, 'owner'] });
     await db.execute({ sql: 'INSERT OR IGNORE INTO modules(pod_id, name) VALUES(?,?)', args: [podId, 'default'] });
 
@@ -183,9 +180,8 @@ app.post('/api/pods', auth, async (req, res) => {
   try {
     const name = (req.body.name || '').trim();
     if (!name) return res.status(400).json({ error: 'Name required' });
-    await db.execute({ sql: 'INSERT INTO pods(name, created_by) VALUES(?,?)', args: [name, req.user.id] });
-    const r = await db.execute('SELECT last_insert_rowid() as id');
-    const podId = r.rows[0].id;
+    const podInsert = await db.execute({ sql: 'INSERT INTO pods(name, created_by) VALUES(?,?)', args: [name, req.user.id] });
+    const podId = Number(podInsert.lastInsertRowid);
     await db.execute({ sql: 'INSERT INTO pod_members(pod_id, user_id, role) VALUES(?,?,?)', args: [podId, req.user.id, 'owner'] });
     await db.execute({ sql: 'INSERT OR IGNORE INTO modules(pod_id, name) VALUES(?,?)', args: [podId, 'default'] });
     res.json({ ok: true, id: podId, name });
