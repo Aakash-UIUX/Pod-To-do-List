@@ -8,8 +8,10 @@ const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'mindmap_secret_aakash_rc_2026';
 
 // Turso DB — set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in Vercel env vars
+// Falls back to /tmp for Vercel serverless (ephemeral), or local file for dev
+const dbUrl = process.env.TURSO_DATABASE_URL || (process.env.VERCEL ? 'file:/tmp/mindmap.db' : 'file:mindmap-local.db');
 const db = createClient({
-  url: process.env.TURSO_DATABASE_URL || 'file:mindmap-local.db',
+  url: dbUrl,
   authToken: process.env.TURSO_AUTH_TOKEN || undefined
 });
 
