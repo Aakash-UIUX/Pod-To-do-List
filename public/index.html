@@ -114,12 +114,6 @@ header h1 .logo-icon { color: var(--primary); }
   font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
-.url-input {
-  background: var(--muted); padding: 3px 8px; border-radius: var(--radius); font-size: 0.7rem;
-  border: 1px solid var(--input); font-family: 'SF Mono', 'Fira Code', monospace; width: 150px; outline: none;
-  transition: border-color 0.15s;
-}
-.url-input:focus { border-color: var(--ring); }
 
 .bar-btn {
   background: none; border: 1px solid var(--input); border-radius: var(--radius);
@@ -472,14 +466,6 @@ body.viewonly .root-node { cursor: default; }
   <button class="bar-btn" onclick="openCreatePod()" title="New Pod"><i data-lucide="plus" style="width:13px;height:13px;"></i></button>
   <button class="bar-btn bar-btn-danger" onclick="openDeletePod()" title="Delete Pod"><i data-lucide="trash-2" style="width:13px;height:13px;"></i></button>
 
-  <div class="sep"></div>
-
-  <label><i data-lucide="link" style="width:12px;height:12px;"></i></label>
-  <input type="text" class="url-input" id="local-url" placeholder="Local URL" onchange="saveUrls()">
-  <button class="bar-btn" onclick="copyUrl('local-url')" title="Copy"><i data-lucide="copy" style="width:12px;height:12px;"></i></button>
-  <label><i data-lucide="globe" style="width:12px;height:12px;"></i></label>
-  <input type="text" class="url-input" id="public-url" placeholder="Public URL" onchange="saveUrls()">
-  <button class="bar-btn" onclick="copyUrl('public-url')" title="Copy"><i data-lucide="copy" style="width:12px;height:12px;"></i></button>
 </div>
 
 <script>
@@ -837,47 +823,12 @@ function openRenameModule(name) {
 }
 
 /* ── Public URL auto-fetch ── */
-function fetchPublicUrl() {
-  fetch('/api/public-url', { headers: { 'Bypass-Tunnel-Reminder': 'true' } })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (data.url) {
-        document.getElementById('public-url').value = data.url;
-        var saved = JSON.parse(localStorage.getItem('mindmap_urls') || '{}');
-        saved.public = data.url;
-        localStorage.setItem('mindmap_urls', JSON.stringify(saved));
-      }
-    }).catch(function() {});
-}
-
 /* ── Date navigation ── */
 function shiftDate(dir) {
   if (dir === 0) { loadDate(todayStr()); return; }
   var d = new Date(currentDate);
   d.setDate(d.getDate() + dir);
   loadDate(d.toISOString().slice(0, 10));
-}
-
-/* ── URL display ── */
-function loadUrls() {
-  var saved = JSON.parse(localStorage.getItem('mindmap_urls') || '{}');
-  document.getElementById('local-url').value = saved.local || '';
-  document.getElementById('public-url').value = saved.public || '';
-}
-
-function saveUrls() {
-  var data = {
-    local: document.getElementById('local-url').value,
-    public: document.getElementById('public-url').value
-  };
-  localStorage.setItem('mindmap_urls', JSON.stringify(data));
-  toast('URL saved');
-}
-
-function copyUrl(id) {
-  var text = document.getElementById(id).value;
-  if (!text) { toast('No URL to copy'); return; }
-  navigator.clipboard.writeText(text).then(function() { toast('URL copied!'); });
 }
 
 /* ── Stats & Progress ── */
@@ -1624,11 +1575,8 @@ document.addEventListener('keydown', function(e) {
 
 /* ── Init ── */
 setupUserMenu();
-loadUrls();
-document.getElementById('local-url').value = window.location.href;
 document.getElementById('date-picker').value = currentDate;
 loadPods();
-fetchPublicUrl();
 lucide.createIcons();
 
 window.onbeforeunload = function() {
