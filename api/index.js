@@ -266,14 +266,9 @@ app.put('/api/pods/:podId', auth, podWrite, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Pod delete disabled — data is never removed
 app.delete('/api/pods/:podId', auth, podWrite, async (req, res) => {
-  const r = await getDB().execute({ sql: 'SELECT created_by FROM pods WHERE id=?', args: [req.podId] });
-  if (r.rows.length === 0 || r.rows[0].created_by !== req.user.id) return res.status(403).json({ error: 'Only owner can delete' });
-  await getDB().execute({ sql: 'DELETE FROM snapshots WHERE pod_id=?', args: [req.podId] });
-  await getDB().execute({ sql: 'DELETE FROM modules WHERE pod_id=?', args: [req.podId] });
-  await getDB().execute({ sql: 'DELETE FROM pod_members WHERE pod_id=?', args: [req.podId] });
-  await getDB().execute({ sql: 'DELETE FROM pods WHERE id=?', args: [req.podId] });
-  res.json({ ok: true });
+  res.status(403).json({ error: 'Pod deletion is disabled. Data is permanently preserved.' });
 });
 
 // ── Pod Members ──
@@ -331,10 +326,9 @@ app.put('/api/pods/:podId/modules/:name', auth, podWrite, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Module delete disabled — data is never removed
 app.delete('/api/pods/:podId/modules/:name', auth, podWrite, async (req, res) => {
-  await getDB().execute({ sql: 'DELETE FROM snapshots WHERE pod_id=? AND module=?', args: [req.podId, req.params.name] });
-  await getDB().execute({ sql: 'DELETE FROM modules WHERE pod_id=? AND name=?', args: [req.podId, req.params.name] });
-  res.json({ ok: true });
+  res.status(403).json({ error: 'Module deletion is disabled. Data is permanently preserved.' });
 });
 
 // ── Data ──
@@ -371,9 +365,9 @@ app.post('/api/pods/:podId/data/:module/:date', auth, podWrite, async (req, res)
   res.json({ ok: true });
 });
 
+// Snapshot delete disabled — data is never removed
 app.delete('/api/pods/:podId/data/:module/:date', auth, podWrite, async (req, res) => {
-  await getDB().execute({ sql: 'DELETE FROM snapshots WHERE pod_id=? AND module=? AND date=?', args: [req.podId, req.params.module, req.params.date] });
-  res.json({ ok: true });
+  res.status(403).json({ error: 'Data deletion is disabled. All snapshots are permanently preserved.' });
 });
 
 // ── Debug/Health ──

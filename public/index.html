@@ -464,7 +464,6 @@ body.viewonly .root-node { cursor: default; }
 
   <div class="pod-tabs" id="pod-tabs"></div>
   <button class="bar-btn" onclick="openCreatePod()" title="New Pod"><i data-lucide="plus" style="width:13px;height:13px;"></i></button>
-  <button class="bar-btn bar-btn-danger" onclick="openDeletePod()" title="Delete Pod"><i data-lucide="trash-2" style="width:13px;height:13px;"></i></button>
 
 </div>
 
@@ -574,6 +573,33 @@ function loadDate(date) {
 function save() {
   hasUnsavedChanges = true;
   updateSaveIndicator();
+  scheduleAutoSave();
+}
+
+var autoSaveTimer = null;
+function scheduleAutoSave() {
+  if (autoSaveTimer) return; // already scheduled
+  autoSaveTimer = setTimeout(function() {
+    autoSaveTimer = null;
+    if (hasUnsavedChanges) {
+      autoSaveNow();
+    }
+  }, 60000); // 1 minute
+}
+
+function autoSaveNow() {
+  if (!currentPodId || !hasUnsavedChanges) return;
+  var pod = allPods.find(function(p) { return p.id === currentPodId; });
+  if (!pod || !pod.isMember) return; // only auto-save if member
+  var payload = { rootTitle: rootTitle, modules: modules };
+  authFetch(podBase() + '/data/' + encodeURIComponent(currentModule) + '/' + currentDate, {
+    method: 'POST', body: JSON.stringify(payload)
+  }).then(function() {
+    dataSaved = true; dataCarriedFrom = null; hasUnsavedChanges = false;
+    updateSaveIndicator(); loadSavedDates();
+    syncPodName(rootTitle);
+    toast('Auto-saved');
+  }).catch(function() {});
 }
 
 function syncPodName(name) {
