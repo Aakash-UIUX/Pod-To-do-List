@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mindmap Tree</title>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --primary: #0E8BDF;
+  --primary-foreground: #ffffff;
+  --primary-hover: #0b7bcb;
+  --background: #ffffff;
+  --foreground: #09090b;
+  --card: #ffffff;
+  --card-foreground: #09090b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #0E8BDF;
+  --radius: 0.5rem;
+  --complete-bg: #dcfce7; --complete-text: #16a34a;
+  --inprogress-bg: #dbeafe; --inprogress-text: #2563eb;
+  --hold-bg: #fef9c3; --hold-text: #ca8a04;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--muted); color: var(--foreground); min-height: 100vh;
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+
+/* ── Header ── */
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--background); border-bottom: 1px solid var(--border);
+  padding: 12px 24px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  backdrop-filter: blur(8px); background: rgba(255,255,255,0.95);
+}
+header h1 {
+  font-size: 1.1rem; font-weight: 700; color: var(--foreground);
+  white-space: nowrap; display: flex; align-items: center; gap: 8px; letter-spacing: -0.025em;
+}
+header h1 .logo-icon { color: var(--primary); }
+.header-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+#search-input {
+  padding: 8px 12px 8px 36px; border: 1px solid var(--input); border-radius: var(--radius);
+  font-size: 0.875rem; width: 220px; outline: none; background: var(--background);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+#search-input:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px rgba(14,139,223,0.1);
+}
+.search-wrap { position: relative; display: flex; align-items: center; }
+.search-wrap .search-icon {
+  position: absolute; left: 10px; color: var(--muted-foreground); pointer-events: none;
+}
+
+/* ── Bottom bar ── */
+.bottom-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  background: var(--background); border-top: 1px solid var(--border);
+  padding: 8px 20px; display: flex; align-items: center; gap: 6px; flex-wrap: nowrap;
+  font-size: 0.8rem; backdrop-filter: blur(8px); background: rgba(255,255,255,0.95);
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+}
+.bottom-bar .sep {
+  width: 1px; height: 20px; background: var(--border); flex-shrink: 0; margin: 0 4px;
+}
+.bottom-bar label {
+  font-weight: 500; font-size: 0.75rem; color: var(--muted-foreground);
+  display: flex; align-items: center; gap: 4px; white-space: nowrap; flex-shrink: 0;
+}
+#date-picker {
+  padding: 4px 8px; border: 1px solid var(--input); border-radius: var(--radius);
+  font-size: 0.75rem; font-family: inherit; outline: none; width: 130px;
+  transition: border-color 0.15s;
+}
+#date-picker:focus { border-color: var(--ring); }
+.date-nav { display: flex; gap: 1px; flex-shrink: 0; }
+.saved-dates { display: flex; gap: 4px; flex-wrap: nowrap; overflow-x: auto; }
+.saved-date-chip {
+  padding: 2px 8px; border-radius: 9999px; font-size: 0.65rem; font-weight: 500;
+  background: var(--muted); border: 1px solid var(--border); cursor: pointer;
+  transition: all 0.15s; color: var(--muted-foreground); white-space: nowrap;
+}
+.saved-date-chip:hover { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+.saved-date-chip.active { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+
+.module-tabs { display: flex; gap: 0; flex-wrap: nowrap; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--muted); }
+.module-tab {
+  padding: 4px 14px; font-size: 0.72rem; font-weight: 500;
+  background: transparent; border: none; cursor: pointer;
+  transition: all 0.15s; color: var(--muted-foreground); display: inline-flex;
+  align-items: center; gap: 5px; white-space: nowrap; font-family: inherit;
+  border-right: 1px solid var(--border); position: relative;
+}
+.module-tab:last-child { border-right: none; }
+.module-tab:hover { background: var(--background); color: var(--foreground); }
+.module-tab.active {
+  background: var(--primary); color: var(--primary-foreground);
+  font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.url-input {
+  background: var(--muted); padding: 3px 8px; border-radius: var(--radius); font-size: 0.7rem;
+  border: 1px solid var(--input); font-family: 'SF Mono', 'Fira Code', monospace; width: 150px; outline: none;
+  transition: border-color 0.15s;
+}
+.url-input:focus { border-color: var(--ring); }
+
+.bar-btn {
+  background: none; border: 1px solid var(--input); border-radius: var(--radius);
+  padding: 3px 6px; cursor: pointer; color: var(--muted-foreground); display: inline-flex;
+  align-items: center; font-size: 0.7rem; transition: all 0.15s; flex-shrink: 0;
+}
+.bar-btn:hover { background: var(--accent); color: var(--accent-foreground); }
+.bar-btn-danger:hover { background: #fee2e2; color: var(--destructive); border-color: #fecaca; }
+
+/* ── Stats ── */
+#stats-bar {
+  padding: 12px 24px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;
+  font-size: 0.875rem; color: var(--muted-foreground);
+}
+.stat-item { display: flex; align-items: center; gap: 6px; }
+.stat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+/* ── Progress ── */
+#progress-wrap { padding: 0 24px 10px; display: none; }
+#progress-wrap.show { display: block; }
+.progress-bar-outer {
+  height: 6px; background: var(--muted); border-radius: 9999px; overflow: hidden;
+}
+.progress-bar-inner {
+  height: 100%; background: var(--primary); border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+.progress-label { font-size: 0.75rem; color: var(--muted-foreground); margin-top: 4px; }
+
+/* ── Mindmap container ── */
+.mindmap { padding: 24px; display: flex; align-items: flex-start; gap: 0; overflow-x: auto; min-height: 400px; width: 100%; }
+
+/* ── Root node ── */
+.root-node {
+  background: var(--primary); color: var(--primary-foreground); border-radius: var(--radius);
+  padding: 16px 20px; min-width: 160px; cursor: pointer; flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+  transition: box-shadow 0.15s;
+}
+.root-node:hover { box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06); }
+.root-node h2 { font-size: 1rem; font-weight: 600; letter-spacing: -0.025em; }
+.root-node .root-count { font-size: 0.75rem; opacity: 0.85; margin-top: 4px; }
+.root-node .mini-progress { height: 3px; background: rgba(255,255,255,0.3); border-radius: 9999px; margin-top: 8px; overflow: hidden; }
+.root-node .mini-progress-fill { height: 100%; background: #fff; border-radius: 9999px; transition: width 0.3s; }
+
+/* ── Branches ── */
+.branches { display: flex; flex-direction: column; gap: 0; position: relative; margin-left: 0; flex: 1; min-width: 0; }
+.branch-row { display: flex; align-items: flex-start; position: relative; width: 100%; }
+.branch-line { width: 40px; flex-shrink: 0; position: relative; }
+.branch-line::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--border);
+}
+.branch-line::after {
+  content: ''; position: absolute; left: 0; top: 24px; width: 40px; height: 2px; background: var(--border);
+}
+.branch-row:first-child .branch-line::before { top: 24px; }
+.branch-row:last-child .branch-line::before { bottom: calc(100% - 26px); }
+.branch-row:only-child .branch-line::before { display: none; }
+
+/* ── Section card ── */
+.branch-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 16px; margin: 4px 0; position: relative;
+  transition: box-shadow 0.15s, border-color 0.15s; flex: 1; min-width: 0;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.branch-card:hover {
+  box-shadow: 0 4px 6px rgba(0,0,0,0.07);
+  border-color: #d4d4d8;
+}
+.branch-card-header { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.branch-label {
+  font-weight: 600; font-size: 0.9rem; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  letter-spacing: -0.01em; color: var(--foreground);
+}
+.chevron {
+  transition: transform 0.2s; color: var(--muted-foreground); flex-shrink: 0;
+  display: flex; align-items: center;
+}
+.chevron.open { transform: rotate(90deg); }
+.branch-actions { display: flex; gap: 4px; flex-shrink: 0; margin-left: 8px; }
+.drag-handle {
+  cursor: grab; color: var(--muted-foreground); padding: 0 4px;
+  position: absolute; top: 12px; left: -2px;
+  opacity: 0; transition: opacity 0.15s; display: flex; align-items: center;
+}
+.branch-card:hover .drag-handle { opacity: 1; }
+.branch-card.dragging { opacity: 0.5; }
+.branch-card.drag-over { border-color: var(--primary); border-style: dashed; }
+
+/* ── Kids ── */
+.kids-list {
+  margin-top: 10px; display: flex; flex-direction: column; gap: 2px;
+  margin-left: 12px; padding-left: 12px; border-left: 2px solid var(--border);
+}
+.leaf-row {
+  display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+  border-radius: var(--radius); position: relative; transition: background 0.1s;
+  background: var(--muted);
+}
+.leaf-row:hover { background: #ebebef; }
+.leaf-label { flex: 1; font-size: 0.825rem; color: var(--muted-foreground); }
+.leaf-icon { color: var(--muted-foreground); flex-shrink: 0; display: flex; align-items: center; }
+.leaf-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+.add-task-btn {
+  margin-top: 8px; font-size: 0.8rem; color: var(--muted-foreground); cursor: pointer;
+  background: none; border: 1px dashed var(--border); border-radius: var(--radius);
+  padding: 5px 12px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: all 0.15s; font-family: inherit;
+}
+.add-task-btn:hover { background: var(--muted); color: var(--primary); border-color: var(--primary); }
+
+/* ── Badges ── */
+.badge {
+  display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px;
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap;
+  border: 1px solid transparent;
+}
+.badge-complete { background: var(--complete-bg); color: var(--complete-text); border-color: #bbf7d0; }
+.badge-inprogress { background: var(--inprogress-bg); color: var(--inprogress-text); border-color: #bfdbfe; }
+.badge-hold { background: var(--hold-bg); color: var(--hold-text); border-color: #fef08a; }
+
+/* ── Buttons ── */
+.btn {
+  padding: 8px 16px; border: none; border-radius: var(--radius); font-size: 0.875rem;
+  font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: inherit;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.btn:active { transform: scale(0.98); }
+.btn-primary {
+  background: var(--primary); color: var(--primary-foreground);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-danger {
+  background: var(--destructive); color: var(--destructive-foreground);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.btn-danger:hover { background: #dc2626; }
+.btn-outline {
+  background: var(--background); border: 1px solid var(--input); color: var(--foreground);
+  padding: 7px 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.btn-outline:hover { background: var(--accent); }
+.btn-ghost {
+  background: transparent; border: none; color: var(--muted-foreground);
+  padding: 7px 10px;
+}
+.btn-ghost:hover { background: var(--accent); color: var(--accent-foreground); }
+
+.icon-btn {
+  background: var(--background); border: 1px solid var(--input); cursor: pointer;
+  padding: 6px; border-radius: var(--radius); color: var(--muted-foreground);
+  transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.icon-btn:hover { background: var(--accent); color: var(--accent-foreground); }
+.icon-btn-edit:hover { background: var(--inprogress-bg); color: var(--inprogress-text); border-color: #bfdbfe; }
+.icon-btn-delete:hover { background: #fee2e2; color: var(--destructive); border-color: #fecaca; }
+
+
+/* ── Modal ── */
+#modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.5); justify-content: center; align-items: center;
+  backdrop-filter: blur(4px);
+}
+#modal-overlay.show { display: flex; }
+.modal-box {
+  background: var(--background); border-radius: calc(var(--radius) * 1.5); padding: 24px;
+  min-width: 380px; max-width: 460px; width: 90%;
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+  border: 1px solid var(--border);
+  animation: modal-in 0.15s ease-out;
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.modal-box h3 { margin-bottom: 16px; font-size: 1.05rem; font-weight: 600; letter-spacing: -0.025em; }
+.modal-field { margin-bottom: 14px; }
+.modal-field label {
+  display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;
+  color: var(--foreground);
+}
+.modal-field input, .modal-field select {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--input); border-radius: var(--radius);
+  font-size: 0.875rem; font-family: inherit; outline: none; background: var(--background);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.modal-field input:focus, .modal-field select:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px rgba(14,139,223,0.1);
+}
+.modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+/* ── Toast ── */
+#toast {
+  position: fixed; bottom: 60px; right: 24px; z-index: 300;
+  background: var(--foreground); color: var(--background); padding: 12px 20px;
+  border-radius: var(--radius); font-size: 0.875rem; opacity: 0;
+  transition: opacity 0.2s, transform 0.2s; pointer-events: none;
+  transform: translateY(8px);
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+  display: flex; align-items: center; gap: 8px;
+}
+#toast.show { opacity: 1; transform: translateY(0); }
+
+
+/* ── Search dim/highlight ── */
+.dimmed { opacity: 0.2; transition: opacity 0.15s; }
+.highlighted { background: #fef9c3; border-radius: var(--radius); }
+
+/* ── Empty state ── */
+.empty-state {
+  text-align: center; padding: 60px 20px; color: var(--muted-foreground);
+}
+.empty-state p { font-size: 0.95rem; margin-bottom: 16px; }
+.empty-state .empty-icon { color: var(--border); margin-bottom: 12px; }
+
+/* ── Save indicator ── */
+.save-indicator {
+  padding: 6px 24px; font-size: 0.8rem; display: flex; align-items: center; gap: 8px;
+  background: var(--background); border-bottom: 1px solid var(--border);
+}
+.save-indicator .indicator-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.save-indicator.saved .indicator-dot { background: var(--complete-text); }
+.save-indicator.carried .indicator-dot { background: var(--hold-text); }
+.save-indicator.unsaved .indicator-dot { background: var(--destructive); }
+.save-indicator .indicator-text { color: var(--muted-foreground); }
+.save-indicator .indicator-text strong { color: var(--foreground); }
+
+/* ── Read-only overlay ── */
+body.readonly .branch-actions,
+body.readonly .leaf-actions,
+body.readonly .add-task-btn,
+body.readonly .drag-handle,
+body.readonly #btn-add-section { display: none !important; }
+body.readonly #btn-save { display: none !important; }
+body.readonly .root-node { cursor: default; }
+
+/* ── User menu ── */
+.user-menu { display:flex; align-items:center; gap:8px; margin-left:8px; }
+.user-name { font-size:0.8rem; font-weight:500; color:var(--muted-foreground); }
+.user-avatar {
+  width:28px; height:28px; border-radius:50%; background:var(--primary); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:700;
+}
+
+/* ── Pod selector in bottom bar ── */
+.pod-tabs { display:flex; gap:0; flex-wrap:nowrap; overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius); background:var(--muted); margin-right:4px; }
+.pod-tab {
+  padding:4px 14px; font-size:0.72rem; font-weight:500;
+  background:transparent; border:none; cursor:pointer;
+  transition:all 0.15s; color:var(--muted-foreground); display:inline-flex;
+  align-items:center; gap:5px; white-space:nowrap; font-family:inherit;
+  border-right:1px solid var(--border); position:relative;
+}
+.pod-tab:last-child { border-right:none; }
+.pod-tab:hover { background:var(--background); color:var(--foreground); }
+.pod-tab.active {
+  background:var(--primary); color:#fff;
+  font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,0.1);
+}
+
+/* ── Members modal list ── */
+.member-row {
+  display:flex; align-items:center; gap:10px; padding:8px 0;
+  border-bottom:1px solid var(--border); font-size:0.85rem;
+}
+.member-row:last-child { border-bottom:none; }
+.member-row .member-info { flex:1; }
+.member-row .member-email { color:var(--muted-foreground); font-size:0.75rem; }
+.member-row .member-role { font-size:0.7rem; font-weight:600; color:var(--primary); text-transform:uppercase; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><i data-lucide="brain" class="logo-icon" style="width:22px;height:22px;"></i> Mindmap Tree</h1>
+  <div class="search-wrap">
+    <i data-lucide="search" class="search-icon" style="width:16px;height:16px;"></i>
+    <input type="text" id="search-input" placeholder="Search nodes..." oninput="handleSearch()">
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-primary" onclick="openAddSection()" id="btn-add-section"><i data-lucide="plus" style="width:16px;height:16px;"></i> Add Section</button>
+    <button class="btn btn-primary" onclick="saveData()" id="btn-save"><i data-lucide="save" style="width:16px;height:16px;"></i> Save</button>
+    <button class="btn btn-outline" onclick="exportPDF()"><i data-lucide="file-text" style="width:16px;height:16px;"></i> PDF</button>
+    <button class="btn btn-outline" onclick="exportTreePDF()"><i data-lucide="git-branch" style="width:16px;height:16px;"></i> Tree PDF</button>
+  </div>
+  <div class="user-menu">
+    <div class="user-avatar" id="user-avatar"></div>
+    <span class="user-name" id="user-name-display"></span>
+    <button class="btn btn-ghost" onclick="openPodMembers()" title="Pod Members"><i data-lucide="users" style="width:16px;height:16px;"></i></button>
+    <button class="btn btn-ghost" onclick="openInvite()" title="Invite"><i data-lucide="user-plus" style="width:16px;height:16px;"></i></button>
+    <button class="btn btn-ghost" onclick="logout()" title="Sign Out"><i data-lucide="log-out" style="width:16px;height:16px;"></i></button>
+  </div>
+</header>
+
+<div class="save-indicator" id="save-indicator"></div>
+<div id="stats-bar"></div>
+<div id="progress-wrap"><div class="progress-bar-outer"><div class="progress-bar-inner" id="progress-bar"></div></div><div class="progress-label" id="progress-label"></div></div>
+
+<div id="app"></div>
+
+<div style="height:48px;"></div><!-- spacer for bottom bar -->
+
+<div id="modal-overlay">
+  <div class="modal-box">
+    <h3 id="modal-title">Title</h3>
+    <div id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="modal-confirm" onclick="confirmModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div class="bottom-bar">
+  <label><i data-lucide="calendar" style="width:13px;height:13px;"></i></label>
+  <input type="date" id="date-picker" onchange="loadDate(this.value)">
+  <div class="date-nav">
+    <button class="bar-btn" onclick="shiftDate(-1)"><i data-lucide="chevron-left" style="width:13px;height:13px;"></i></button>
+    <button class="bar-btn" onclick="shiftDate(0)"><i data-lucide="calendar-check" style="width:13px;height:13px;"></i></button>
+    <button class="bar-btn" onclick="shiftDate(1)"><i data-lucide="chevron-right" style="width:13px;height:13px;"></i></button>
+  </div>
+  <div class="saved-dates" id="saved-dates"></div>
+
+  <div class="sep"></div>
+
+  <div class="pod-tabs" id="pod-tabs"></div>
+  <button class="bar-btn" onclick="openCreatePod()" title="New Pod"><i data-lucide="plus" style="width:13px;height:13px;"></i></button>
+  <button class="bar-btn bar-btn-danger" onclick="openDeletePod()" title="Delete Pod"><i data-lucide="trash-2" style="width:13px;height:13px;"></i></button>
+
+  <div class="sep"></div>
+
+  <div class="module-tabs" id="module-tabs"></div>
+  <button class="bar-btn" onclick="openCreateModule()" title="New Module"><i data-lucide="plus" style="width:13px;height:13px;"></i></button>
+
+  <div class="sep"></div>
+
+  <label><i data-lucide="link" style="width:12px;height:12px;"></i></label>
+  <input type="text" class="url-input" id="local-url" placeholder="Local URL" onchange="saveUrls()">
+  <button class="bar-btn" onclick="copyUrl('local-url')" title="Copy"><i data-lucide="copy" style="width:12px;height:12px;"></i></button>
+  <label><i data-lucide="globe" style="width:12px;height:12px;"></i></label>
+  <input type="text" class="url-input" id="public-url" placeholder="Public URL" onchange="saveUrls()">
+  <button class="bar-btn" onclick="copyUrl('public-url')" title="Copy"><i data-lucide="copy" style="width:12px;height:12px;"></i></button>
+</div>
+
+<script>
+/* ── Auth check ── */
+var token = localStorage.getItem('mindmap_token');
+var currentUser = JSON.parse(localStorage.getItem('mindmap_user') || 'null');
+if (!token || !currentUser) { window.location.href = '/auth.html'; }
+
+/* ── State ── */
+var rootTitle = 'My Project';
+var modules = [];
+var currentDate = todayStr();
+var currentPodId = parseInt(localStorage.getItem('mindmap_pod_id')) || 0;
+var currentModule = localStorage.getItem('mindmap_current_module') || 'default';
+var allPods = [];
+var collapsed = {};
+var modalMode = '';
+var modalTarget = null;
+var dragSrcIndex = null;
+var dataSaved = false;
+var dataCarriedFrom = null;
+var hasUnsavedChanges = false;
+
+/* ── Helpers ── */
+function uid() { return '_' + Math.random().toString(36).substr(2, 9); }
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function badgeClass(s) { return 'badge badge-' + s; }
+function lucideIcon(name, size) {
+  size = size || 16;
+  return '<i data-lucide="' + name + '" style="width:' + size + 'px;height:' + size + 'px;"></i>';
+}
+function refreshIcons() { if (window.lucide) lucide.createIcons(); }
+
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'Bypass-Tunnel-Reminder': 'true' };
+}
+
+function authFetch(url, opts) {
+  opts = opts || {};
+  opts.headers = authHeaders();
+  return fetch(url, opts).then(function(r) {
+    if (r.status === 401) { logout(); throw new Error('Unauthorized'); }
+    return r;
+  });
+}
+
+/* ── Toast ── */
+function toast(msg) {
+  var t = document.getElementById('toast');
+  t.innerHTML = lucideIcon('check-circle', 16) + ' ' + esc(msg);
+  t.classList.add('show');
+  refreshIcons();
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function() { t.classList.remove('show'); }, 2400);
+}
+
+/* ── Auth ── */
+function logout() {
+  localStorage.removeItem('mindmap_token');
+  localStorage.removeItem('mindmap_user');
+  window.location.href = '/auth.html';
+}
+
+function setupUserMenu() {
+  if (!currentUser) return;
+  var initials = currentUser.name.split(' ').map(function(w) { return w[0]; }).join('').toUpperCase().slice(0, 2);
+  document.getElementById('user-avatar').textContent = initials;
+  document.getElementById('user-name-display').textContent = currentUser.name;
+}
+
+/* ── Pod API base ── */
+function podBase() { return '/api/pods/' + currentPodId; }
+
+/* ── Load date (pod-scoped) ── */
+function loadDate(date) {
+  currentDate = date;
+  document.getElementById('date-picker').value = date;
+  if (!currentPodId) { render(); return; }
+  authFetch(podBase() + '/data/' + encodeURIComponent(currentModule) + '/' + date)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      rootTitle = data.rootTitle || 'My Project';
+      modules = data.modules || [];
+      dataSaved = data._saved === true;
+      dataCarriedFrom = data._from || null;
+      hasUnsavedChanges = false;
+      updateReadOnly();
+      updateSaveIndicator();
+      render();
+      loadSavedDates();
+    })
+    .catch(function() {
+      rootTitle = 'My Project'; modules = [];
+      dataSaved = false; dataCarriedFrom = null; hasUnsavedChanges = false;
+      updateReadOnly(); updateSaveIndicator(); render();
+    });
+}
+
+function save() {
+  hasUnsavedChanges = true;
+  updateSaveIndicator();
+}
+
+function saveData() {
+  if (!currentPodId) return;
+  var payload = { rootTitle: rootTitle, modules: modules };
+  authFetch(podBase() + '/data/' + encodeURIComponent(currentModule) + '/' + currentDate, {
+    method: 'POST', body: JSON.stringify(payload)
+  }).then(function() {
+    dataSaved = true; dataCarriedFrom = null; hasUnsavedChanges = false;
+    updateSaveIndicator(); loadSavedDates();
+    toast('Data saved for ' + currentDate);
+  });
+}
+
+function updateReadOnly() {
+  if (currentDate < todayStr()) document.body.classList.add('readonly');
+  else document.body.classList.remove('readonly');
+}
+
+function updateSaveIndicator() {
+  var el = document.getElementById('save-indicator');
+  var isPast = currentDate < todayStr();
+  if (hasUnsavedChanges) {
+    el.className = 'save-indicator unsaved';
+    el.innerHTML = '<span class="indicator-dot"></span><span class="indicator-text">' +
+      lucideIcon('alert-circle', 14) + ' <strong>Unsaved changes</strong> — click Save to persist</span>';
+  } else if (dataSaved) {
+    el.className = 'save-indicator saved';
+    el.innerHTML = '<span class="indicator-dot"></span><span class="indicator-text">' +
+      lucideIcon('check-circle', 14) + ' Saved for <strong>' + currentDate + '</strong>' +
+      (isPast ? ' (read-only)' : '') + '</span>';
+  } else if (dataCarriedFrom) {
+    el.className = 'save-indicator carried';
+    el.innerHTML = '<span class="indicator-dot"></span><span class="indicator-text">' +
+      lucideIcon('history', 14) + ' Carried from <strong>' + dataCarriedFrom + '</strong>' +
+      (isPast ? ' (read-only)' : ' — edit and Save to create a snapshot for today') + '</span>';
+  } else {
+    el.className = 'save-indicator carried';
+    el.innerHTML = '<span class="indicator-dot"></span><span class="indicator-text">' +
+      lucideIcon('inbox', 14) + ' No data yet' + (isPast ? '' : ' — add sections and Save') + '</span>';
+  }
+  refreshIcons();
+}
+
+function loadSavedDates() {
+  if (!currentPodId) return;
+  authFetch(podBase() + '/data/' + encodeURIComponent(currentModule) + '/dates')
+    .then(function(r) { return r.json(); })
+    .then(function(dates) {
+      var c = document.getElementById('saved-dates');
+      c.innerHTML = dates.map(function(d) {
+        var active = d === currentDate ? ' active' : '';
+        return '<span class="saved-date-chip' + active + '" onclick="loadDate(\'' + d + '\')">' + d + '</span>';
+      }).join('');
+    });
+}
+
+/* ── Pod management ── */
+function loadPods() {
+  authFetch('/api/pods')
+    .then(function(r) { return r.json(); })
+    .then(function(pods) {
+      allPods = pods;
+      if (pods.length === 0) return;
+      if (!currentPodId || !pods.find(function(p) { return p.id === currentPodId; })) {
+        currentPodId = pods[0].id;
+        localStorage.setItem('mindmap_pod_id', currentPodId);
+      }
+      renderPodTabs();
+      loadModulesForPod();
+    });
+}
+
+function renderPodTabs() {
+  var c = document.getElementById('pod-tabs');
+  c.innerHTML = allPods.map(function(p) {
+    var active = p.id === currentPodId ? ' active' : '';
+    return '<button class="pod-tab' + active + '" onclick="switchPod(' + p.id + ')" ondblclick="openRenamePod(' + p.id + ',\'' + esc(p.name) + '\')" title="Double-click to rename">' +
+      lucideIcon('hexagon', 12) + ' ' + esc(p.name) +
+      '<span style="font-size:0.6rem;opacity:0.7;margin-left:2px;">(' + p.member_count + ')</span></button>';
+  }).join('');
+  refreshIcons();
+}
+
+function switchPod(id) {
+  if (id === currentPodId) return;
+  currentPodId = id;
+  localStorage.setItem('mindmap_pod_id', id);
+  currentModule = 'default';
+  localStorage.setItem('mindmap_current_module', 'default');
+  renderPodTabs();
+  loadModulesForPod();
+  toast('Switched pod');
+}
+
+function openCreatePod() {
+  modalMode = 'create-pod';
+  document.getElementById('modal-title').textContent = 'Create New Pod';
+  document.getElementById('modal-body').innerHTML =
+    '<div class="modal-field"><label>Pod Name</label><input type="text" id="modal-name" placeholder="e.g. Team Alpha"></div>';
+  showModal();
+  document.getElementById('modal-name').focus();
+}
+
+function openDeletePod() {
+  var pod = allPods.find(function(p) { return p.id === currentPodId; });
+  if (!pod) return;
+  if (pod.created_by !== currentUser.id) { toast('Only the pod owner can delete'); return; }
+  modalMode = 'confirm-delete-pod';
+  document.getElementById('modal-title').textContent = 'Delete Pod?';
+  document.getElementById('modal-body').innerHTML =
+    '<p>This will permanently delete pod <strong>' + esc(pod.name) + '</strong> and all its data.</p>';
+  document.getElementById('modal-confirm').textContent = 'Delete';
+  document.getElementById('modal-confirm').className = 'btn btn-danger';
+  showModal();
+}
+
+function openRenamePod(id, name) {
+  modalMode = 'rename-pod';
+  modalTarget = id;
+  document.getElementById('modal-title').textContent = 'Rename Pod';
+  document.getElementById('modal-body').innerHTML =
+    '<div class="modal-field"><label>New Name</label><input type="text" id="modal-name" value="' + esc(name) + '"></div>';
+  showModal();
+  document.getElementById('modal-name').select();
+}
+
+/* ── Pod members ── */
+function openPodMembers() {
+  if (!currentPodId) return;
+  modalMode = 'view-members';
+  document.getElementById('modal-title').textContent = 'Pod Members';
+  document.getElementById('modal-body').innerHTML = '<p>Loading...</p>';
+  document.getElementById('modal-confirm').style.display = 'none';
+  showModal();
+  authFetch(podBase() + '/members').then(function(r) { return r.json(); })
+    .then(function(members) {
+      var html = members.map(function(m) {
+        var removeBtn = (m.id !== currentUser.id) ?
+          '<button class="icon-btn icon-btn-delete" onclick="removeMember(' + m.id + ')" style="padding:4px;">' + lucideIcon('x', 14) + '</button>' : '';
+        return '<div class="member-row">' +
+          '<div class="member-info"><strong>' + esc(m.name) + '</strong><div class="member-email">' + esc(m.email) + '</div></div>' +
+          '<span class="member-role">' + m.role + '</span>' + removeBtn + '</div>';
+      }).join('');
+      document.getElementById('modal-body').innerHTML = html || '<p>No members</p>';
+      refreshIcons();
+    });
+}
+
+function openInvite() {
+  modalMode = 'invite-member';
+  document.getElementById('modal-title').textContent = 'Invite to Pod';
+  document.getElementById('modal-body').innerHTML =
+    '<div class="modal-field"><label>Email address</label><input type="email" id="modal-name" placeholder="teammate@example.com"></div>' +
+    '<p style="font-size:0.8rem;color:var(--muted-foreground);">The user must have signed up already.</p>';
+  document.getElementById('modal-confirm').style.display = '';
+  showModal();
+  document.getElementById('modal-name').focus();
+}
+
+function removeMember(userId) {
+  authFetch(podBase() + '/members/' + userId, { method: 'DELETE' })
+    .then(function() { toast('Member removed'); openPodMembers(); loadPods(); });
+}
+
+/* ── Module management (pod-scoped) ── */
+function loadModulesForPod() {
+  if (!currentPodId) return;
+  authFetch(podBase() + '/modules')
+    .then(function(r) { return r.json(); })
+    .then(function(mods) {
+      if (mods.length === 0) mods = ['default'];
+      if (mods.indexOf(currentModule) === -1) {
+        currentModule = mods[0];
+        localStorage.setItem('mindmap_current_module', currentModule);
+      }
+      renderModuleTabs(mods);
+      loadDate(currentDate);
+    });
+}
+
+function renderModuleTabs(mods) {
+  var c = document.getElementById('module-tabs');
+  c.innerHTML = mods.map(function(m) {
+    var active = m === currentModule ? ' active' : '';
+    return '<button class="module-tab' + active + '" onclick="switchModule(\'' + esc(m) + '\')" ondblclick="openRenameModule(\'' + esc(m) + '\')" title="Double-click to rename">' +
+      lucideIcon('box', 12) + ' ' + esc(m) + '</button>';
+  }).join('');
+  refreshIcons();
+}
+
+function switchModule(name) {
+  if (name === currentModule) return;
+  currentModule = name;
+  localStorage.setItem('mindmap_current_module', name);
+  document.querySelectorAll('.module-tab').forEach(function(tab) {
+    tab.classList.toggle('active', tab.textContent.trim() === name);
+  });
+  loadDate(currentDate);
+}
+
+function openCreateModule() {
+  modalMode = 'create-module';
+  document.getElementById('modal-title').textContent = 'Create New Module';
+  document.getElementById('modal-body').innerHTML =
+    '<div class="modal-field"><label>Module Name</label><input type="text" id="modal-name" placeholder="e.g. Backend, Frontend..."></div>';
+  showModal();
+  document.getElementById('modal-name').focus();
+}
+
+function openRenameModule(name) {
+  modalMode = 'rename-module';
+  modalTarget = name;
+  document.getElementById('modal-title').textContent = 'Rename Module';
+  document.getElementById('modal-body').innerHTML =
+    '<div class="modal-field"><label>New Name</label><input type="text" id="modal-name" value="' + esc(name) + '"></div>';
+  showModal();
+  document.getElementById('modal-name').select();
+}
+
+/* ── Public URL auto-fetch ── */
+function fetchPublicUrl() {
+  fetch('/api/public-url', { headers: { 'Bypass-Tunnel-Reminder': 'true' } })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.url) {
+        document.getElementById('public-url').value = data.url;
+        var saved = JSON.parse(localStorage.getItem('mindmap_urls') || '{}');
+        saved.public = data.url;
+        localStorage.setItem('mindmap_urls', JSON.stringify(saved));
+      }
+    }).catch(function() {});
+}
+
+/* ── Date navigation ── */
+function shiftDate(dir) {
+  if (dir === 0) { loadDate(todayStr()); return; }
+  var d = new Date(currentDate);
+  d.setDate(d.getDate() + dir);
+  loadDate(d.toISOString().slice(0, 10));
+}
+
+/* ── URL display ── */
+function loadUrls() {
+  var saved = JSON.parse(localStorage.getItem('mindmap_urls') || '{}');
+  document.getElementById('local-url').value = saved.local || '';
+  document.getElementById('public-url').value = saved.public || '';
+}
+
+function saveUrls() {
+  var data = {
+    local: document.getElementById('local-url').value,
+    public: document.getElementById('public-url').value
+  };
+  localStorage.setItem('mindmap_urls', JSON.stringify(data));
+  toast('URL saved');
+}
+
+function copyUrl(id) {
+  var text = document.getElementById(id).value;
+  if (!text) { toast('No URL to copy'); return; }
+  navigator.clipboard.writeText(text).then(function() { toast('URL copied!'); });
+}
+
+/* ── Stats & Progress ── */
+function renderStats() {
+  var total = 0, complete = 0, inprogress = 0, hold = 0;
+  modules.forEach(function(m) {
+    var items = [m].concat(m.kids || []);
+    items.forEach(function(it) {
+      total++;
+      if (it.status === 'complete') complete++;
+      else if (it.status === 'inprogress') inprogress++;
+      else hold++;
+    });
+  });
+  document.getElementById('stats-bar').innerHTML =
+    '<div class="stat-item">' + lucideIcon('layers', 14) + ' <strong>' + modules.length + '</strong> sections</div>' +
+    '<div class="stat-item"><span class="stat-dot" style="background:var(--inprogress-text)"></span> ' + inprogress + ' in progress</div>' +
+    '<div class="stat-item"><span class="stat-dot" style="background:var(--complete-text)"></span> ' + complete + ' complete</div>' +
+    '<div class="stat-item"><span class="stat-dot" style="background:var(--hold-text)"></span> ' + hold + ' hold</div>' +
+    '<div class="stat-item">' + lucideIcon('hash', 14) + ' Total: <strong>' + total + '</strong></div>';
+
+  var pw = document.getElementById('progress-wrap');
+  if (total > 0) {
+    pw.classList.add('show');
+    var pct = Math.round((complete / total) * 100);
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('progress-label').textContent = pct + '% complete';
+    return pct;
+  } else {
+    pw.classList.remove('show');
+    return 0;
+  }
+}
+
+/* ── Render ── */
+function render() {
+  var pct = renderStats();
+  var app = document.getElementById('app');
+
+  if (modules.length === 0) {
+    app.innerHTML = '<div class="mindmap"><div class="root-node" onclick="editRoot()">' +
+      '<h2>' + esc(rootTitle) + '</h2><div class="root-count">0 sections</div>' +
+      '</div></div>' +
+      '<div class="empty-state"><div class="empty-icon">' + lucideIcon('inbox', 48) + '</div>' +
+      '<p>No sections yet for ' + esc(currentDate) + '</p>' +
+      '<button class="btn btn-primary" onclick="openAddSection()">' + lucideIcon('plus', 16) + ' Add Section</button></div>';
+    refreshIcons();
+    return;
+  }
+
+  var html = '<div class="mindmap">';
+  html += '<div class="root-node" onclick="editRoot()">';
+  html += '<h2>' + esc(rootTitle) + '</h2>';
+  html += '<div class="root-count">' + modules.length + ' sections</div>';
+  html += '<div class="mini-progress"><div class="mini-progress-fill" style="width:' + pct + '%"></div></div>';
+  html += '</div>';
+
+  html += '<div class="branches">';
+  modules.forEach(function(m, i) {
+    var isOpen = !collapsed[m.id];
+    var hasKids = m.kids && m.kids.length > 0;
+
+    html += '<div class="branch-row">';
+    html += '<div class="branch-line"></div>';
+    html += '<div class="branch-card" id="card-' + m.id + '" draggable="true"' +
+      ' ondragstart="dragStart(event,' + i + ')" ondragover="dragOver(event)" ondragleave="dragLeave(event)"' +
+      ' ondrop="dropCard(event,' + i + ')">';
+    html += '<span class="drag-handle">' + lucideIcon('grip-vertical', 16) + '</span>';
+    html += '<div class="branch-card-header">';
+    if (hasKids) {
+      html += '<span class="chevron' + (isOpen ? ' open' : '') + '" onclick="toggleSection(\'' + m.id + '\')">' + lucideIcon('chevron-right', 16) + '</span>';
+    }
+    html += '<span style="color:var(--primary);display:flex;align-items:center;flex-shrink:0;" onclick="toggleSection(\'' + m.id + '\')">' + lucideIcon('folder', 16) + '</span>';
+    html += '<span class="branch-label" onclick="toggleSection(\'' + m.id + '\')">' + esc(m.label) + '</span>';
+    html += '<span class="' + badgeClass(m.status) + '">' + m.status + '</span>';
+    html += '<div class="branch-actions">' +
+      '<button class="icon-btn icon-btn-edit" onclick="openEditSection(\'' + m.id + '\')" title="Edit">' + lucideIcon('pencil', 15) + '</button>' +
+      '<button class="icon-btn icon-btn-delete" onclick="deleteSection(\'' + m.id + '\')" title="Delete">' + lucideIcon('trash-2', 15) + '</button>' +
+      '</div>';
+    html += '</div>';
+
+    if (isOpen && hasKids) {
+      html += '<div class="kids-list">';
+      m.kids.forEach(function(k) {
+        html += '<div class="leaf-row" id="leaf-' + k.id + '">';
+        html += '<span class="leaf-icon">' + lucideIcon('circle-dot', 14) + '</span>';
+        html += '<span class="leaf-label">' + esc(k.label) + '</span>';
+        html += '<span class="' + badgeClass(k.status) + '">' + k.status + '</span>';
+        html += '<div class="leaf-actions">' +
+          '<button class="icon-btn icon-btn-edit" onclick="openEditTask(\'' + m.id + '\',\'' + k.id + '\')" title="Edit">' + lucideIcon('pencil', 14) + '</button>' +
+          '<button class="icon-btn icon-btn-delete" onclick="deleteTask(\'' + m.id + '\',\'' + k.id + '\')" title="Delete">' + lucideIcon('trash-2', 14) + '</button>' +
+          '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
+    html += '<button class="add-task-btn" onclick="openAddTask(\'' + m.id + '\')">' + lucideIcon('plus', 14) + ' Add Task</button>';
+    html += '</div></div>';
+  });
+  html += '</div></div>';
+
+  app.innerHTML = html;
+  refreshIcons();
+}
+
+/* ── Toggle ── */
+function toggleSection(id) {
+  collapsed[id] = !collapsed[id];
+  render();
+}
+
+/* ── Modal infrastructure ── */
+function showModal() {
+  document.getElementById('modal-overlay').classList.add('show');
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('show');
+  resetModalBtn();
+}
+function resetModalBtn() {
+  var btn = document.getElementById('modal-confirm');
+  if (btn) { btn.textContent = 'Save'; btn.className = 'btn btn-primary'; }
+}
+
+function formFields(nameVal, statusVal) {
+  return '<div class="modal-field"><label>Name</label><input type="text" id="modal-name" value="' + esc(nameVal || '') + '"></div>' +
+    '<div class="modal-field"><label>Status</label><select id="modal-status">' +
+    '<option value="inprogress"' + (statusVal === 'inprogress' ? ' selected' : '') + '>In Progress</option>' +
+    '<option value="complete"' + (statusVal === 'complete' ? ' selected' : '') + '>Complete</option>' +
+    '<option value="hold"' + (statusVal === 'hold' ? ' selected' : '') + '>Hold</option>' +
+    '</select></div>';
+}
+
+/* ── Root ── */
+function editRoot() {
+  modalMode = 'edit-root';
+  document.getElementById('modal-title').textContent = 'Edit Project Name';
+  document.getElementById('modal-body').innerHTML =
+    '<div class="modal-field"><label>Project Name</label><input type="text" id="modal-name" value="' + esc(rootTitle) + '"></div>';
+  showModal();
+  document.getElementById('modal-name').focus();
+}
+
+/* ── Section CRUD ── */
+function openAddSection() {
+  modalMode = 'add-section';
+  document.getElementById('modal-title').textContent = 'Add Section';
+  document.getElementById('modal-body').innerHTML = formFields('', 'inprogress');
+  showModal();
+  document.getElementById('modal-name').focus();
+}
+
+function openEditSection(id) {
+  var m = modules.find(function(x) { return x.id === id; });
+  if (!m) return;
+  modalMode = 'edit-section';
+  modalTarget = id;
+  document.getElementById('modal-title').textContent = 'Edit Section';
+  document.getElementById('modal-body').innerHTML = formFields(m.label, m.status);
+  showModal();
+  document.getElementById('modal-name').focus();
+}
+
+function deleteSection(id) {
+  var m = modules.find(function(x) { return x.id === id; });
+  if (!m) return;
+  modalMode = 'confirm-delete-section';
+  modalTarget = id;
+  document.getElementById('modal-title').textContent = 'Delete Section?';
+  document.getElementById('modal-body').innerHTML =
+    '<p>This will permanently delete <strong>' + esc(m.label) + '</strong> and all its tasks.</p>';
+  document.getElementById('modal-confirm').textContent = 'Delete';
+  document.getElementById('modal-confirm').className = 'btn btn-danger';
+  showModal();
+}
+
+/* ── Task CRUD ── */
+function openAddTask(sectionId) {
+  modalMode = 'add-task';
+  modalTarget = sectionId;
+  document.getElementById('modal-title').textContent = 'Add Task';
+  document.getElementById('modal-body').innerHTML = formFields('', 'inprogress');
+  showModal();
+  document.getElementById('modal-name').focus();
+}
+
+function openEditTask(sectionId, taskId) {
+  var m = modules.find(function(x) { return x.id === sectionId; });
+  if (!m) return;
+  var k = (m.kids || []).find(function(x) { return x.id === taskId; });
+  if (!k) return;
+  modalMode = 'edit-task';
+  modalTarget = { sectionId: sectionId, taskId: taskId };
+  document.getElementById('modal-title').textContent = 'Edit Task';
+  document.getElementById('modal-body').innerHTML = formFields(k.label, k.status);
+  showModal();
+  document.getElementById('modal-name').focus();
+}
+
+function deleteTask(sectionId, taskId) {
+  var m = modules.find(function(x) { return x.id === sectionId; });
+  if (!m) return;
+  var k = (m.kids || []).find(function(x) { return x.id === taskId; });
+  if (!k) return;
+  modalMode = 'confirm-delete-task';
+  modalTarget = { sectionId: sectionId, taskId: taskId };
+  document.getElementById('modal-title').textContent = 'Delete Task?';
+  document.getElementById('modal-body').innerHTML =
+    '<p>This will permanently delete <strong>' + esc(k.label) + '</strong>.</p>';
+  document.getElementById('modal-confirm').textContent = 'Delete';
+  document.getElementById('modal-confirm').className = 'btn btn-danger';
+  showModal();
+}
+
+/* ── Modal confirm handler ── */
+function confirmModal() {
+  var nameEl = document.getElementById('modal-name');
+  var statusEl = document.getElementById('modal-status');
+
+  if (modalMode === 'edit-root') {
+    var v = nameEl.value.trim();
+    if (!v) return;
+    rootTitle = v;
+    render(); save();
+    toast('Project renamed');
+  }
+  else if (modalMode === 'add-section') {
+    var v = nameEl.value.trim();
+    if (!v) return;
+    modules.push({ id: uid(), label: v, status: statusEl.value, kids: [] });
+    render(); save();
+    toast('Section added');
+  }
+  else if (modalMode === 'edit-section') {
+    var m = modules.find(function(x) { return x.id === modalTarget; });
+    if (m) {
+      m.label = nameEl.value.trim() || m.label;
+      m.status = statusEl.value;
+      render(); save();
+      toast('Section updated');
+    }
+  }
+  else if (modalMode === 'confirm-delete-section') {
+    modules = modules.filter(function(x) { return x.id !== modalTarget; });
+    render(); save();
+    toast('Section deleted');
+  }
+  else if (modalMode === 'add-task') {
+    var m = modules.find(function(x) { return x.id === modalTarget; });
+    if (m) {
+      if (!m.kids) m.kids = [];
+      var v = nameEl.value.trim();
+      if (!v) return;
+      m.kids.push({ id: uid(), label: v, status: statusEl.value });
+      collapsed[m.id] = false;
+      render(); save();
+      toast('Task added');
+    }
+  }
+  else if (modalMode === 'edit-task') {
+    var m = modules.find(function(x) { return x.id === modalTarget.sectionId; });
+    if (m) {
+      var k = (m.kids || []).find(function(x) { return x.id === modalTarget.taskId; });
+      if (k) {
+        k.label = nameEl.value.trim() || k.label;
+        k.status = statusEl.value;
+        render(); save();
+        toast('Task updated');
+      }
+    }
+  }
+  else if (modalMode === 'confirm-delete-task') {
+    var m = modules.find(function(x) { return x.id === modalTarget.sectionId; });
+    if (m) {
+      m.kids = (m.kids || []).filter(function(x) { return x.id !== modalTarget.taskId; });
+      render(); save();
+      toast('Task deleted');
+    }
+  }
+  else if (modalMode === 'create-module') {
+    var v = document.getElementById('modal-name').value.trim();
+    if (!v) return;
+    authFetch(podBase() + '/modules', {
+      method: 'POST', body: JSON.stringify({ name: v })
+    }).then(function() {
+      currentModule = v;
+      localStorage.setItem('mindmap_current_module', v);
+      loadModulesForPod();
+      toast('Module "' + v + '" created');
+    });
+  }
+  else if (modalMode === 'rename-module') {
+    var v = document.getElementById('modal-name').value.trim();
+    if (!v) return;
+    authFetch(podBase() + '/modules/' + encodeURIComponent(modalTarget), {
+      method: 'PUT', body: JSON.stringify({ name: v })
+    }).then(function() {
+      if (currentModule === modalTarget) {
+        currentModule = v;
+        localStorage.setItem('mindmap_current_module', v);
+      }
+      loadModulesForPod();
+      toast('Module renamed to "' + v + '"');
+    });
+  }
+  else if (modalMode === 'create-pod') {
+    var v = document.getElementById('modal-name').value.trim();
+    if (!v) return;
+    authFetch('/api/pods', {
+      method: 'POST', body: JSON.stringify({ name: v })
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      currentPodId = data.id;
+      localStorage.setItem('mindmap_pod_id', currentPodId);
+      currentModule = 'default';
+      loadPods();
+      toast('Pod "' + v + '" created');
+    });
+  }
+  else if (modalMode === 'confirm-delete-pod') {
+    authFetch('/api/pods/' + currentPodId, { method: 'DELETE' })
+      .then(function() {
+        toast('Pod deleted');
+        currentPodId = 0;
+        localStorage.removeItem('mindmap_pod_id');
+        loadPods();
+      });
+  }
+  else if (modalMode === 'rename-pod') {
+    var v = document.getElementById('modal-name').value.trim();
+    if (!v) return;
+    authFetch('/api/pods/' + modalTarget, {
+      method: 'PUT', body: JSON.stringify({ name: v })
+    }).then(function() {
+      loadPods();
+      toast('Pod renamed');
+    });
+  }
+  else if (modalMode === 'invite-member') {
+    var email = document.getElementById('modal-name').value.trim();
+    if (!email) return;
+    authFetch(podBase() + '/invite', {
+      method: 'POST', body: JSON.stringify({ email: email })
+    }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(r) {
+      if (!r.ok) { toast(r.data.error); return; }
+      loadPods();
+      toast('Member invited!');
+    });
+  }
+
+  closeModal();
+  document.getElementById('modal-confirm').style.display = '';
+}
+
+/* ── Drag & Drop reorder ── */
+function dragStart(e, idx) {
+  dragSrcIndex = idx;
+  e.dataTransfer.effectAllowed = 'move';
+  e.target.closest('.branch-card').classList.add('dragging');
+}
+function dragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.target.closest('.branch-card').classList.add('drag-over');
+}
+function dragLeave(e) {
+  e.target.closest('.branch-card').classList.remove('drag-over');
+}
+function dropCard(e, targetIdx) {
+  e.preventDefault();
+  e.target.closest('.branch-card').classList.remove('drag-over');
+  if (dragSrcIndex === null || dragSrcIndex === targetIdx) return;
+  var item = modules.splice(dragSrcIndex, 1)[0];
+  modules.splice(targetIdx, 0, item);
+  dragSrcIndex = null;
+  render(); save();
+  toast('Section reordered');
+}
+
+/* ── Search ── */
+function handleSearch() {
+  var q = document.getElementById('search-input').value.trim().toLowerCase();
+  if (!q) {
+    document.querySelectorAll('.branch-card, .leaf-row, .root-node').forEach(function(el) {
+      el.classList.remove('dimmed', 'highlighted');
+    });
+    return;
+  }
+  modules.forEach(function(m) {
+    var card = document.getElementById('card-' + m.id);
+    if (!card) return;
+    var match = m.label.toLowerCase().includes(q);
+    var kidMatch = false;
+    (m.kids || []).forEach(function(k) {
+      var leaf = document.getElementById('leaf-' + k.id);
+      if (!leaf) return;
+      if (k.label.toLowerCase().includes(q)) {
+        leaf.classList.add('highlighted');
+        leaf.classList.remove('dimmed');
+        kidMatch = true;
+      } else {
+        leaf.classList.add('dimmed');
+        leaf.classList.remove('highlighted');
+      }
+    });
+    if (match || kidMatch) {
+      card.classList.remove('dimmed');
+      if (match) card.classList.add('highlighted');
+    } else {
+      card.classList.add('dimmed');
+      card.classList.remove('highlighted');
+    }
+  });
+}
+
+/* ── Export / Import ── */
+
+function exportPDF() {
+  var statusColors = {
+    complete: { bg: '#dcfce7', text: '#16a34a' },
+    inprogress: { bg: '#dbeafe', text: '#2563eb' },
+    hold: { bg: '#fef9c3', text: '#ca8a04' }
+  };
+
+  var total = 0, complete = 0, inprogress = 0, hold = 0;
+  modules.forEach(function(m) {
+    [m].concat(m.kids || []).forEach(function(it) {
+      total++;
+      if (it.status === 'complete') complete++;
+      else if (it.status === 'inprogress') inprogress++;
+      else hold++;
+    });
+  });
+  var pct = total > 0 ? Math.round((complete / total) * 100) : 0;
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">';
+  html += '<title>Mindmap Report - ' + currentDate + '</title>';
+  html += '<style>';
+  html += '@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");';
+  html += '* { margin:0; padding:0; box-sizing:border-box; }';
+  html += 'body { font-family:"Inter",sans-serif; color:#09090b; padding:40px; font-size:13px; line-height:1.6; }';
+  html += '.report-header { border-bottom:2px solid #0E8BDF; padding-bottom:16px; margin-bottom:24px; }';
+  html += '.report-header h1 { font-size:22px; font-weight:700; color:#0E8BDF; letter-spacing:-0.025em; }';
+  html += '.report-header .date { font-size:14px; color:#71717a; margin-top:4px; }';
+  html += '.stats { display:flex; gap:24px; margin-bottom:20px; padding:12px 16px; background:#f4f4f5; border-radius:8px; font-size:13px; }';
+  html += '.stats .stat { display:flex; align-items:center; gap:6px; }';
+  html += '.stats .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }';
+  html += '.progress-outer { height:6px; background:#e4e4e7; border-radius:99px; overflow:hidden; margin-bottom:24px; }';
+  html += '.progress-inner { height:100%; background:#0E8BDF; border-radius:99px; }';
+  html += '.progress-label { font-size:12px; color:#71717a; margin-bottom:6px; }';
+  html += '.section { margin-bottom:16px; border:1px solid #e4e4e7; border-radius:8px; overflow:hidden; }';
+  html += '.section-header { display:flex; align-items:center; gap:10px; padding:10px 16px; background:#fafafa; border-bottom:1px solid #e4e4e7; }';
+  html += '.section-header .name { font-weight:600; font-size:14px; flex:1; }';
+  html += '.badge { display:inline-block; padding:2px 10px; border-radius:99px; font-size:11px; font-weight:600; }';
+  html += '.task-row { display:flex; align-items:center; gap:10px; padding:8px 16px 8px 32px; border-bottom:1px solid #f4f4f5; }';
+  html += '.task-row:last-child { border-bottom:none; }';
+  html += '.task-row .name { flex:1; font-size:13px; color:#3f3f46; }';
+  html += '.task-row .bullet { width:6px; height:6px; border-radius:50%; background:#d4d4d8; flex-shrink:0; }';
+  html += '.footer { margin-top:32px; padding-top:12px; border-top:1px solid #e4e4e7; font-size:11px; color:#a1a1aa; text-align:center; }';
+  html += '@media print { body { padding:20px; } @page { margin:15mm; } }';
+  html += '</style></head><body>';
+
+  html += '<div class="report-header">';
+  html += '<h1>' + esc(rootTitle) + '</h1>';
+  html += '<div class="date">Report for: ' + currentDate + ' &middot; Generated: ' + new Date().toLocaleString() + '</div>';
+  html += '</div>';
+
+  html += '<div class="stats">';
+  html += '<div class="stat"><strong>' + modules.length + '</strong> sections</div>';
+  html += '<div class="stat"><span class="dot" style="background:#2563eb"></span> ' + inprogress + ' in progress</div>';
+  html += '<div class="stat"><span class="dot" style="background:#16a34a"></span> ' + complete + ' complete</div>';
+  html += '<div class="stat"><span class="dot" style="background:#ca8a04"></span> ' + hold + ' hold</div>';
+  html += '<div class="stat">Total: <strong>' + total + '</strong></div>';
+  html += '</div>';
+
+  html += '<div class="progress-label">' + pct + '% complete</div>';
+  html += '<div class="progress-outer"><div class="progress-inner" style="width:' + pct + '%"></div></div>';
+
+  modules.forEach(function(m) {
+    var sc = statusColors[m.status] || statusColors.hold;
+    html += '<div class="section">';
+    html += '<div class="section-header">';
+    html += '<span class="name">' + esc(m.label) + '</span>';
+    html += '<span class="badge" style="background:' + sc.bg + ';color:' + sc.text + '">' + m.status + '</span>';
+    html += '</div>';
+    if (m.kids && m.kids.length > 0) {
+      m.kids.forEach(function(k) {
+        var kc = statusColors[k.status] || statusColors.hold;
+        html += '<div class="task-row">';
+        html += '<span class="bullet"></span>';
+        html += '<span class="name">' + esc(k.label) + '</span>';
+        html += '<span class="badge" style="background:' + kc.bg + ';color:' + kc.text + '">' + k.status + '</span>';
+        html += '</div>';
+      });
+    } else {
+      html += '<div class="task-row" style="color:#a1a1aa;padding-left:16px;">No tasks</div>';
+    }
+    html += '</div>';
+  });
+
+  html += '<div class="footer">Mindmap Tree &middot; ' + currentDate + '</div>';
+  html += '</body></html>';
+
+  var printWin = window.open('', '_blank');
+  printWin.document.write(html);
+  printWin.document.close();
+  printWin.onload = function() {
+    printWin.print();
+  };
+  toast('PDF export opened');
+}
+
+function exportTreePDF() {
+  var sc = {
+    complete: { bg: '#dcfce7', text: '#16a34a', stroke: '#22c55e' },
+    inprogress: { bg: '#dbeafe', text: '#2563eb', stroke: '#3b82f6' },
+    hold: { bg: '#fef9c3', text: '#ca8a04', stroke: '#eab308' }
+  };
+
+  var total = 0, complete = 0, inprogress = 0, hold = 0;
+  modules.forEach(function(m) {
+    [m].concat(m.kids || []).forEach(function(it) {
+      total++;
+      if (it.status === 'complete') complete++;
+      else if (it.status === 'inprogress') inprogress++;
+      else hold++;
+    });
+  });
+  var pct = total > 0 ? Math.round((complete / total) * 100) : 0;
+
+  // Layout calculation — scale down for many sections to fit A4
+  var n = modules.length || 1;
+  var scale = n > 6 ? Math.max(0.55, 6 / n) : 1;
+  // Find longest task label to size task nodes
+  var maxTaskLabel = 0;
+  modules.forEach(function(m) {
+    (m.kids || []).forEach(function(k) {
+      if (k.label.length > maxTaskLabel) maxTaskLabel = k.label.length;
+    });
+  });
+  var rootW = 140, rootH = Math.round(50 * scale + 10);
+  var secW = 180, secH = Math.round(32 * scale + 4), secGap = Math.round(10 * scale + 2);
+  var taskW = Math.max(200, Math.min(320, maxTaskLabel * 8 + 80));
+  var taskH = Math.round(24 * scale + 4), taskGap = Math.round(4 * scale + 1);
+  var branchGapX = 50, taskGapX = 35;
+
+  // Measure total height per section (section + its tasks)
+  var sectionBlocks = modules.map(function(m) {
+    var kidCount = (m.kids && m.kids.length) || 0;
+    var kidsH = kidCount > 0 ? kidCount * taskH + (kidCount - 1) * taskGap : 0;
+    var blockH = Math.max(secH, kidsH);
+    return { mod: m, kidCount: kidCount, kidsH: kidsH, blockH: blockH };
+  });
+  var totalBranchH = 0;
+  sectionBlocks.forEach(function(b, i) {
+    totalBranchH += b.blockH;
+    if (i < sectionBlocks.length - 1) totalBranchH += secGap;
+  });
+
+  var svgW = rootW + branchGapX + secW + taskGapX + taskW + 60;
+  var svgH = Math.max(totalBranchH + 80, rootH + 80);
+  var headerH = 120;
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">';
+  html += '<title>Mindmap - ' + currentDate + '</title>';
+  html += '<style>';
+  html += '@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");';
+  html += '* { margin:0; padding:0; box-sizing:border-box; }';
+  html += 'html, body { font-family:"Inter",sans-serif; color:#09090b; padding:0; margin:0; background:#fff; width:277mm; height:190mm; overflow:hidden; }';
+  html += '.page { padding:0 5mm; display:flex; flex-direction:column; width:277mm; height:190mm; overflow:hidden; }';
+  html += '.header { display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #0E8BDF; padding-bottom:6px; margin-bottom:6px; flex-shrink:0; }';
+  html += '.header h1 { font-size:16px; font-weight:700; color:#0E8BDF; }';
+  html += '.header .meta { font-size:10px; color:#71717a; text-align:right; }';
+  html += '.stats-row { display:flex; gap:14px; font-size:9px; color:#71717a; margin-bottom:4px; flex-shrink:0; }';
+  html += '.stats-row strong { color:#09090b; }';
+  html += '.stats-row .dot { width:5px; height:5px; border-radius:50%; display:inline-block; vertical-align:middle; margin-right:2px; }';
+  html += '.prog-wrap { height:3px; background:#e4e4e7; border-radius:99px; overflow:hidden; margin-bottom:6px; flex-shrink:0; }';
+  html += '.prog-fill { height:100%; background:#0E8BDF; border-radius:99px; }';
+  html += '.map-container { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; overflow:hidden; }';
+  html += '.map-container svg { max-width:100%; max-height:100%; display:block; }';
+  html += '.footer { padding-top:4px; border-top:1px solid #e4e4e7; font-size:8px; color:#a1a1aa; text-align:center; flex-shrink:0; }';
+  html += '@page { margin:10mm; size:A4 landscape; }';
+  html += '@media print { html,body { width:277mm; height:190mm; } }';
+  html += '</style></head><body>';
+
+  // Page wrapper
+  html += '<div class="page">';
+
+  // Header
+  html += '<div class="header">';
+  html += '<h1>' + esc(rootTitle) + '</h1>';
+  html += '<div class="meta">Date: <strong>' + currentDate + '</strong><br>' + new Date().toLocaleString() + '</div>';
+  html += '</div>';
+
+  // Stats
+  html += '<div class="stats-row">';
+  html += '<span><strong>' + modules.length + '</strong> sections</span>';
+  html += '<span><span class="dot" style="background:#2563eb"></span>' + inprogress + ' in progress</span>';
+  html += '<span><span class="dot" style="background:#16a34a"></span>' + complete + ' complete</span>';
+  html += '<span><span class="dot" style="background:#ca8a04"></span>' + hold + ' hold</span>';
+  html += '<span>Total: <strong>' + total + '</strong></span>';
+  html += '<span>' + pct + '% complete</span>';
+  html += '</div>';
+  html += '<div class="prog-wrap"><div class="prog-fill" style="width:' + pct + '%"></div></div>';
+
+  // SVG Mindmap
+  html += '<div class="map-container">';
+  html += '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + svgW + ' ' + svgH + '" preserveAspectRatio="xMidYMid meet">';
+
+  // Root node position (centered vertically)
+  var rootX = 20;
+  var rootY = (svgH - rootH) / 2;
+
+  // Root node
+  html += '<rect x="' + rootX + '" y="' + rootY + '" width="' + rootW + '" height="' + rootH + '" rx="8" fill="#0E8BDF" />';
+  html += '<text x="' + (rootX + rootW/2) + '" y="' + (rootY + rootH*0.4) + '" text-anchor="middle" dominant-baseline="middle" fill="#fff" font-size="12" font-weight="700" font-family="Inter,sans-serif">' + esc(rootTitle) + '</text>';
+  html += '<text x="' + (rootX + rootW/2) + '" y="' + (rootY + rootH*0.72) + '" text-anchor="middle" dominant-baseline="middle" fill="rgba(255,255,255,0.8)" font-size="9" font-family="Inter,sans-serif">' + modules.length + ' sections &middot; ' + pct + '%</text>';
+
+  // Root connector point
+  var rootCX = rootX + rootW;
+  var rootCY = rootY + rootH / 2;
+
+  // Sections start X
+  var secStartX = rootX + rootW + branchGapX;
+  var taskStartX = secStartX + secW + taskGapX;
+
+  // Draw sections and tasks
+  var curY = (svgH - totalBranchH) / 2;
+
+  sectionBlocks.forEach(function(block, si) {
+    var m = block.mod;
+    var col = sc[m.status] || sc.hold;
+    var secCenterY = curY + block.blockH / 2;
+    var secY = secCenterY - secH / 2;
+
+    // Curved line from root to section
+    var midX = rootCX + (secStartX - rootCX) / 2;
+    html += '<path d="M' + rootCX + ',' + rootCY + ' C' + midX + ',' + rootCY + ' ' + midX + ',' + secCenterY + ' ' + secStartX + ',' + secCenterY + '" fill="none" stroke="' + col.stroke + '" stroke-width="2.5" stroke-opacity="0.5" />';
+
+    // Section node (rounded rect with colored left border)
+    html += '<rect x="' + secStartX + '" y="' + secY + '" width="' + secW + '" height="' + secH + '" rx="6" fill="#fff" stroke="#e4e4e7" stroke-width="1" />';
+    html += '<rect x="' + secStartX + '" y="' + secY + '" width="3" height="' + secH + '" rx="1.5" fill="' + col.stroke + '" />';
+
+    // Status pill on section (compute first so clipPath can use pillW)
+    var pillH = Math.max(14, Math.round(18 * scale));
+    var pillW = m.status.length * 6 + 12;
+    var pillX = secStartX + secW - pillW - 6;
+    var pillY = secY + (secH - pillH) / 2;
+
+    // Section label — clip with clipPath
+    var secFontSize = Math.max(8, Math.round(11 * scale));
+    var secClipId = 'sc' + si;
+    html += '<clipPath id="' + secClipId + '"><rect x="' + (secStartX + 10) + '" y="' + secY + '" width="' + (secW - pillW - 24) + '" height="' + secH + '" /></clipPath>';
+    html += '<text clip-path="url(#' + secClipId + ')" x="' + (secStartX + 12) + '" y="' + (secY + secH/2) + '" dominant-baseline="middle" fill="#09090b" font-size="' + secFontSize + '" font-weight="600" font-family="Inter,sans-serif">' + esc(m.label) + '</text>';
+
+    // Draw status pill
+    html += '<rect x="' + pillX + '" y="' + pillY + '" width="' + pillW + '" height="' + pillH + '" rx="' + (pillH/2) + '" fill="' + col.bg + '" />';
+    html += '<text x="' + (pillX + pillW/2) + '" y="' + (pillY + pillH/2) + '" text-anchor="middle" dominant-baseline="middle" fill="' + col.text + '" font-size="' + Math.max(7, Math.round(8 * scale)) + '" font-weight="600" font-family="Inter,sans-serif">' + m.status + '</text>';
+
+    // Tasks
+    if (block.kidCount > 0) {
+      var secRightX = secStartX + secW;
+      var tasksTopY = secCenterY - block.kidsH / 2;
+
+      m.kids.forEach(function(k, ki) {
+        var kc = sc[k.status] || sc.hold;
+        var taskY = tasksTopY + ki * (taskH + taskGap);
+        var taskCY = taskY + taskH / 2;
+
+        // Curved line from section to task
+        var tMidX = secRightX + (taskStartX - secRightX) / 2;
+        html += '<path d="M' + secRightX + ',' + secCenterY + ' C' + tMidX + ',' + secCenterY + ' ' + tMidX + ',' + taskCY + ' ' + taskStartX + ',' + taskCY + '" fill="none" stroke="' + kc.stroke + '" stroke-width="1.5" stroke-opacity="0.4" />';
+
+        // Task status mini pill (compute first so clipPath can use tPillW)
+        var tPillH = Math.max(12, Math.round(14 * scale));
+        var tPillW = k.status.length * 5 + 10;
+        var tPillX = taskStartX + taskW - tPillW - 5;
+        var tPillY = taskY + (taskH - tPillH) / 2;
+
+        // Task node
+        html += '<rect x="' + taskStartX + '" y="' + taskY + '" width="' + taskW + '" height="' + taskH + '" rx="5" fill="#f4f4f5" stroke="#e4e4e7" stroke-width="0.5" />';
+
+        // Task colored dot
+        var dotR = Math.max(2, Math.round(3 * scale));
+        html += '<circle cx="' + (taskStartX + 10) + '" cy="' + taskCY + '" r="' + dotR + '" fill="' + kc.stroke + '" />';
+
+        // Task label — clip with clipPath
+        var taskFontSize = Math.max(7, Math.round(9.5 * scale));
+        var taskClipId = 'tc' + si + '_' + ki;
+        html += '<clipPath id="' + taskClipId + '"><rect x="' + (taskStartX + 16) + '" y="' + taskY + '" width="' + (taskW - tPillW - 28) + '" height="' + taskH + '" /></clipPath>';
+        html += '<text clip-path="url(#' + taskClipId + ')" x="' + (taskStartX + 18) + '" y="' + taskCY + '" dominant-baseline="middle" fill="#3f3f46" font-size="' + taskFontSize + '" font-family="Inter,sans-serif">' + esc(k.label) + '</text>';
+
+        // Draw task status pill
+        html += '<rect x="' + tPillX + '" y="' + tPillY + '" width="' + tPillW + '" height="' + tPillH + '" rx="' + (tPillH/2) + '" fill="' + kc.bg + '" />';
+        html += '<text x="' + (tPillX + tPillW/2) + '" y="' + (tPillY + tPillH/2) + '" text-anchor="middle" dominant-baseline="middle" fill="' + kc.text + '" font-size="' + Math.max(6, Math.round(7 * scale)) + '" font-weight="600" font-family="Inter,sans-serif">' + k.status + '</text>';
+      });
+    }
+
+    curY += block.blockH + secGap;
+  });
+
+  html += '</svg></div>';
+
+  // Legend
+  html += '<div class="footer">';
+  html += '<span style="margin-right:16px;"><span class="dot" style="width:8px;height:8px;border-radius:50%;display:inline-block;background:#3b82f6;vertical-align:middle;margin-right:4px;"></span>In Progress</span>';
+  html += '<span style="margin-right:16px;"><span class="dot" style="width:8px;height:8px;border-radius:50%;display:inline-block;background:#22c55e;vertical-align:middle;margin-right:4px;"></span>Complete</span>';
+  html += '<span style="margin-right:16px;"><span class="dot" style="width:8px;height:8px;border-radius:50%;display:inline-block;background:#eab308;vertical-align:middle;margin-right:4px;"></span>Hold</span>';
+  html += '&nbsp;&nbsp;&middot;&nbsp;&nbsp;Mindmap Tree &middot; ' + currentDate;
+  html += '</div>';
+
+  html += '</div>'; // close .page
+  html += '</body></html>';
+
+  var printWin = window.open('', '_blank');
+  printWin.document.write(html);
+  printWin.document.close();
+  printWin.onload = function() {
+    printWin.print();
+  };
+  toast('Tree PDF export opened');
+}
+
+/* ── Keyboard shortcuts ── */
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeModal();
+  if (document.getElementById('modal-overlay').classList.contains('show') && e.key === 'Enter') {
+    e.preventDefault();
+    confirmModal();
+  }
+});
+
+/* ── Init ── */
+setupUserMenu();
+loadUrls();
+document.getElementById('local-url').value = window.location.href;
+document.getElementById('date-picker').value = currentDate;
+loadPods();
+fetchPublicUrl();
+lucide.createIcons();
+
+window.onbeforeunload = function() {
+  if (hasUnsavedChanges) return 'You have unsaved changes.';
+};
+</script>
+</body>
+</html>

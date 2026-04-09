@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mindmap Tree — Sign In</title>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+:root {
+  --primary: #0E8BDF;
+  --primary-hover: #0b7bcb;
+  --background: #ffffff;
+  --foreground: #09090b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #0E8BDF;
+  --radius: 0.5rem;
+  --destructive: #ef4444;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:'Inter',-apple-system,sans-serif; background:var(--muted); color:var(--foreground);
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  font-size:14px; -webkit-font-smoothing:antialiased;
+}
+.auth-card {
+  background:var(--background); border:1px solid var(--border); border-radius:12px;
+  padding:32px; width:400px; max-width:92vw;
+  box-shadow:0 4px 24px rgba(0,0,0,0.08);
+}
+.auth-card h1 {
+  font-size:1.4rem; font-weight:700; text-align:center; margin-bottom:4px;
+  display:flex; align-items:center; justify-content:center; gap:8px; color:var(--primary);
+}
+.auth-card .subtitle { text-align:center; color:var(--muted-foreground); font-size:0.85rem; margin-bottom:24px; }
+.tabs { display:flex; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:24px; }
+.tab {
+  flex:1; padding:10px; text-align:center; font-size:0.85rem; font-weight:500;
+  cursor:pointer; background:var(--muted); color:var(--muted-foreground); border:none;
+  font-family:inherit; transition:all 0.15s;
+}
+.tab.active { background:var(--primary); color:#fff; font-weight:600; }
+.field { margin-bottom:14px; }
+.field label { display:block; font-size:0.85rem; font-weight:500; margin-bottom:5px; }
+.field input {
+  width:100%; padding:9px 12px; border:1px solid var(--input); border-radius:var(--radius);
+  font-size:0.875rem; font-family:inherit; outline:none; transition:border-color 0.15s, box-shadow 0.15s;
+}
+.field input:focus { border-color:var(--ring); box-shadow:0 0 0 3px rgba(14,139,223,0.1); }
+.btn {
+  width:100%; padding:10px; border:none; border-radius:var(--radius); font-size:0.9rem;
+  font-weight:600; cursor:pointer; font-family:inherit; transition:all 0.15s;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+}
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-primary:hover { background:var(--primary-hover); }
+.btn:active { transform:scale(0.98); }
+.btn:disabled { opacity:0.6; cursor:not-allowed; }
+.error-msg {
+  background:#fee2e2; color:var(--destructive); padding:8px 12px; border-radius:var(--radius);
+  font-size:0.8rem; margin-bottom:14px; display:none; border:1px solid #fecaca;
+}
+.error-msg.show { display:block; }
+.success-msg {
+  background:#dcfce7; color:#16a34a; padding:8px 12px; border-radius:var(--radius);
+  font-size:0.8rem; margin-bottom:14px; display:none; border:1px solid #bbf7d0;
+}
+.success-msg.show { display:block; }
+.hidden { display:none; }
+</style>
+</head>
+<body>
+<div class="auth-card">
+  <h1><i data-lucide="brain" style="width:28px;height:28px;"></i> Mindmap Tree</h1>
+  <p class="subtitle">Sign in to access your pods</p>
+
+  <div class="tabs">
+    <button class="tab active" id="tab-signin" onclick="showTab('signin')">Sign In</button>
+    <button class="tab" id="tab-signup" onclick="showTab('signup')">Sign Up</button>
+  </div>
+
+  <div id="error" class="error-msg"></div>
+  <div id="success" class="success-msg"></div>
+
+  <!-- Sign In Form -->
+  <form id="form-signin" onsubmit="handleSignIn(event)">
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="si-email" required placeholder="you@example.com">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="si-password" required placeholder="Enter password">
+    </div>
+    <button type="submit" class="btn btn-primary" id="btn-signin"><i data-lucide="log-in" style="width:16px;height:16px;"></i> Sign In</button>
+  </form>
+
+  <!-- Sign Up Form -->
+  <form id="form-signup" class="hidden" onsubmit="handleSignUp(event)">
+    <div class="field">
+      <label>Name</label>
+      <input type="text" id="su-name" required placeholder="Your name">
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="su-email" required placeholder="you@example.com">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="su-password" required minlength="4" placeholder="Min 4 characters">
+    </div>
+    <button type="submit" class="btn btn-primary" id="btn-signup"><i data-lucide="user-plus" style="width:16px;height:16px;"></i> Sign Up</button>
+  </form>
+</div>
+
+<script>
+lucide.createIcons();
+
+if (localStorage.getItem('mindmap_token')) {
+  window.location.href = '/';
+}
+
+function showTab(tab) {
+  document.getElementById('tab-signin').classList.toggle('active', tab === 'signin');
+  document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+  document.getElementById('form-signin').classList.toggle('hidden', tab !== 'signin');
+  document.getElementById('form-signup').classList.toggle('hidden', tab !== 'signup');
+  hideMessages();
+}
+
+function hideMessages() {
+  document.getElementById('error').classList.remove('show');
+  document.getElementById('success').classList.remove('show');
+}
+
+function showError(msg) {
+  hideMessages();
+  var el = document.getElementById('error');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function showSuccess(msg) {
+  hideMessages();
+  var el = document.getElementById('success');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function apiCall(url, body) {
+  return fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Bypass-Tunnel-Reminder': 'true'
+    },
+    body: JSON.stringify(body)
+  }).then(function(r) {
+    var ct = r.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      throw new Error('Server returned non-JSON response. Please refresh and try again.');
+    }
+    return r.json().then(function(d) { return { ok: r.ok, data: d }; });
+  });
+}
+
+function handleSignIn(e) {
+  e.preventDefault();
+  hideMessages();
+  var btn = document.getElementById('btn-signin');
+  btn.disabled = true;
+  btn.innerHTML = 'Signing in...';
+
+  var email = document.getElementById('si-email').value;
+  var password = document.getElementById('si-password').value;
+
+  apiCall('/api/auth/signin', { email: email, password: password })
+  .then(function(r) {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="log-in" style="width:16px;height:16px;"></i> Sign In';
+    lucide.createIcons();
+    if (!r.ok) return showError(r.data.error || 'Sign in failed');
+    localStorage.setItem('mindmap_token', r.data.token);
+    localStorage.setItem('mindmap_user', JSON.stringify(r.data.user));
+    showSuccess('Signed in! Redirecting...');
+    setTimeout(function() { window.location.href = '/'; }, 500);
+  }).catch(function(err) {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="log-in" style="width:16px;height:16px;"></i> Sign In';
+    lucide.createIcons();
+    showError(err.message || 'Network error. Check your connection.');
+  });
+}
+
+function handleSignUp(e) {
+  e.preventDefault();
+  hideMessages();
+  var btn = document.getElementById('btn-signup');
+  btn.disabled = true;
+  btn.innerHTML = 'Creating account...';
+
+  var name = document.getElementById('su-name').value;
+  var email = document.getElementById('su-email').value;
+  var password = document.getElementById('su-password').value;
+
+  apiCall('/api/auth/signup', { name: name, email: email, password: password })
+  .then(function(r) {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="user-plus" style="width:16px;height:16px;"></i> Sign Up';
+    lucide.createIcons();
+    if (!r.ok) return showError(r.data.error || 'Sign up failed');
+    localStorage.setItem('mindmap_token', r.data.token);
+    localStorage.setItem('mindmap_user', JSON.stringify(r.data.user));
+    showSuccess('Account created! Redirecting...');
+    setTimeout(function() { window.location.href = '/'; }, 500);
+  }).catch(function(err) {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="user-plus" style="width:16px;height:16px;"></i> Sign Up';
+    lucide.createIcons();
+    showError(err.message || 'Network error. Check your connection.');
+  });
+}
+</script>
+</body>
+</html>

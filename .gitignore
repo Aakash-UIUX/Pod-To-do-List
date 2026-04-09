@@ -1,0 +1,7 @@
+node_modules/
+mindmap.db
+mindmap-local.db
+data/
+data_backup/
+.env
+.vercel/
