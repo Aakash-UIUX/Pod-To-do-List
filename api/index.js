@@ -100,7 +100,7 @@ async function podAccess(req, res, next) {
 // Middleware to ensure DB is ready
 app.use(async (req, res, next) => {
   try { await ensureDB(); next(); }
-  catch (e) { res.status(500).json({ error: 'DB init failed: ' + e.message }); }
+  catch (e) { console.error('DB init error:', e); res.status(500).json({ error: 'DB init failed: ' + e.message, stack: e.stack }); }
 });
 
 // ══════════════════════════════════════
@@ -304,7 +304,25 @@ app.delete('/api/pods/:podId/data/:module/:date', auth, podAccess, async (req, r
   res.json({ ok: true });
 });
 
-// ── Public URL (for local dev only) ──
+// ── Debug/Health ──
+app.get('/api/health', async (req, res) => {
+  try {
+    await ensureDB();
+    const r = await db.execute('SELECT 1 as ok');
+    res.json({
+      status: 'ok',
+      db: dbUrl.startsWith('libsql://') ? 'turso' : 'local',
+      dbUrl: dbUrl.replace(/\/\/.*@/, '//***@'),
+      hasTursoUrl: !!process.env.TURSO_DATABASE_URL,
+      hasTursoToken: !!process.env.TURSO_AUTH_TOKEN,
+      vercel: !!process.env.VERCEL,
+      result: r.rows[0]
+    });
+  } catch (e) {
+    res.status(500).json({ status: 'error', error: e.message, stack: e.stack });
+  }
+});
+
 app.get('/api/public-url', (req, res) => {
   res.json({ url: null });
 });
