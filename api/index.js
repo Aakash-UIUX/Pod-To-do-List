@@ -351,9 +351,14 @@ app.put('/api/pods/:podId/modules/:name', auth, podWrite, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Module delete disabled — data is never removed
+// Module delete — admin only
 app.delete('/api/pods/:podId/modules/:name', auth, podWrite, async (req, res) => {
-  res.status(403).json({ error: 'Module deletion is disabled. Data is permanently preserved.' });
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Module deletion is disabled. Only admins can delete modules.' });
+  try {
+    await getDB().execute({ sql: 'DELETE FROM snapshots WHERE pod_id=? AND module=?', args: [req.podId, req.params.name] });
+    await getDB().execute({ sql: 'DELETE FROM modules WHERE pod_id=? AND name=?', args: [req.podId, req.params.name] });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Data ──
@@ -390,9 +395,13 @@ app.post('/api/pods/:podId/data/:module/:date', auth, podWrite, async (req, res)
   res.json({ ok: true });
 });
 
-// Snapshot delete disabled — data is never removed
+// Snapshot delete — admin only
 app.delete('/api/pods/:podId/data/:module/:date', auth, podWrite, async (req, res) => {
-  res.status(403).json({ error: 'Data deletion is disabled. All snapshots are permanently preserved.' });
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Data deletion is disabled. Only admins can delete snapshots.' });
+  try {
+    await getDB().execute({ sql: 'DELETE FROM snapshots WHERE pod_id=? AND module=? AND date=?', args: [req.podId, req.params.module, req.params.date] });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Debug/Health ──

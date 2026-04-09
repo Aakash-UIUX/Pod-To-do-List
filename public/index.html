@@ -389,6 +389,8 @@ body.viewonly .root-node { cursor: default; }
   border-right:1px solid var(--border); position:relative;
 }
 .pod-tab:last-child { border-right:none; }
+.pod-tab-del { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; margin-left:4px; border-radius:50%; font-size:13px; line-height:1; color:var(--danger); opacity:0.6; }
+.pod-tab-del:hover { opacity:1; background:var(--danger); color:#fff; }
 .pod-tab:hover { background:var(--background); color:var(--foreground); }
 .pod-tab.active {
   background:var(--primary); color:#fff;
@@ -473,6 +475,18 @@ body.viewonly .root-node { cursor: default; }
 var token = localStorage.getItem('mindmap_token');
 var currentUser = JSON.parse(localStorage.getItem('mindmap_user') || 'null');
 if (!token || !currentUser) { window.location.href = '/auth.html'; }
+
+/* Refresh user (picks up is_admin changes without requiring re-login) */
+fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } })
+  .then(function(r) { return r.ok ? r.json() : null; })
+  .then(function(u) {
+    if (!u) return;
+    currentUser = u;
+    localStorage.setItem('mindmap_user', JSON.stringify(u));
+    if (typeof renderPodTabs === 'function') renderPodTabs();
+    var delBtn = document.getElementById('btn-delete-pod');
+    if (delBtn) delBtn.style.display = u.is_admin ? '' : 'none';
+  });
 
 /* ── State ── */
 var rootTitle = 'My Project';
@@ -691,14 +705,17 @@ function loadPods() {
 
 function renderPodTabs() {
   var c = document.getElementById('pod-tabs');
+  var isAdmin = currentUser && currentUser.is_admin;
   c.innerHTML = allPods.map(function(p) {
     var active = p.id === currentPodId ? ' active' : '';
     var icon = p.isMember ? 'hexagon' : 'eye';
     var dblClick = p.isMember ? ' ondblclick="openRenamePod(' + p.id + ',\'' + esc(p.name) + '\')"' : '';
     var title = p.isMember ? 'Member — double-click to rename' : 'View only';
+    var adminDel = isAdmin ? '<span class="pod-tab-del" onclick="event.stopPropagation();openDeletePodById(' + p.id + ')" title="Delete pod (admin)">×</span>' : '';
     return '<button class="pod-tab' + active + '" onclick="switchPod(' + p.id + ')"' + dblClick + ' title="' + title + '">' +
       lucideIcon(icon, 12) + ' ' + esc(p.name) +
-      '<span style="font-size:0.6rem;opacity:0.7;margin-left:2px;">(' + p.member_count + ')</span></button>';
+      '<span style="font-size:0.6rem;opacity:0.7;margin-left:2px;">(' + p.member_count + ')</span>' +
+      adminDel + '</button>';
   }).join('');
   refreshIcons();
 }
@@ -735,10 +752,12 @@ function openCreatePod() {
   document.getElementById('modal-name').focus();
 }
 
-function openDeletePod() {
-  var pod = allPods.find(function(p) { return p.id === currentPodId; });
+function openDeletePod() { openDeletePodById(currentPodId); }
+function openDeletePodById(id) {
+  var pod = allPods.find(function(p) { return p.id === id; });
   if (!pod) return;
   if (pod.created_by !== currentUser.id && !currentUser.is_admin) { toast('Only the pod owner or admin can delete'); return; }
+  modalTarget = id;
   modalMode = 'confirm-delete-pod';
   document.getElementById('modal-title').textContent = 'Delete Pod?';
   document.getElementById('modal-body').innerHTML =
@@ -1181,13 +1200,16 @@ function confirmModal() {
     });
   }
   else if (modalMode === 'confirm-delete-pod') {
-    authFetch('/api/pods/' + currentPodId, { method: 'DELETE' })
+    var delId = modalTarget || currentPodId;
+    authFetch('/api/pods/' + delId, { method: 'DELETE' })
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (data.error) { toast(data.error); return; }
         toast('Pod deleted');
-        currentPodId = 0;
-        localStorage.removeItem('mindmap_pod_id');
+        if (delId === currentPodId) {
+          currentPodId = 0;
+          localStorage.removeItem('mindmap_pod_id');
+        }
         loadPods();
       });
   }
