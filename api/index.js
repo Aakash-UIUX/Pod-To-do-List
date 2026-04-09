@@ -160,6 +160,32 @@ app.post('/api/auth/signin', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Step 1: Check if email exists
+app.post('/api/auth/check-email', async (req, res) => {
+  try {
+    const email = (req.body.email || '').toLowerCase().trim();
+    if (!email) return res.status(400).json({ error: 'Email required' });
+    const r = await getDB().execute({ sql: 'SELECT id FROM users WHERE email=?', args: [email] });
+    if (r.rows.length === 0) return res.status(404).json({ error: 'No account found with that email' });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Step 2: Verify identity (name match)
+app.post('/api/auth/verify-identity', async (req, res) => {
+  try {
+    const { email, name } = req.body;
+    if (!email || !name) return res.status(400).json({ error: 'Email and name required' });
+    const r = await getDB().execute({ sql: 'SELECT name FROM users WHERE email=?', args: [email.toLowerCase()] });
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Account not found' });
+    if (r.rows[0].name.toLowerCase().trim() !== name.toLowerCase().trim()) {
+      return res.status(403).json({ error: 'Name does not match. Please enter the exact name you registered with.' });
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Step 3: Reset password
 app.post('/api/auth/reset-password', async (req, res) => {
   try {
     const { email, name, password } = req.body;

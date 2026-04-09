@@ -28,7 +28,7 @@ body {
 }
 .auth-card {
   background:var(--background); border:1px solid var(--border); border-radius:12px;
-  padding:32px; width:400px; max-width:92vw;
+  padding:32px; width:420px; max-width:92vw;
   box-shadow:0 4px 24px rgba(0,0,0,0.08);
 }
 .auth-card h1 {
@@ -70,23 +70,40 @@ body {
 }
 .success-msg.show { display:block; }
 .hidden { display:none; }
+.forgot-link {
+  display:block; text-align:right; font-size:0.8rem; color:var(--primary);
+  cursor:pointer; margin:-6px 0 14px; text-decoration:none;
+}
+.forgot-link:hover { text-decoration:underline; }
+.back-link {
+  display:inline-flex; align-items:center; gap:4px; font-size:0.8rem; color:var(--muted-foreground);
+  cursor:pointer; margin-bottom:16px; text-decoration:none;
+}
+.back-link:hover { color:var(--primary); }
+.steps { display:flex; gap:8px; margin-bottom:20px; }
+.step-dot {
+  width:8px; height:8px; border-radius:50%; background:var(--border); transition:all 0.2s;
+}
+.step-dot.active { background:var(--primary); width:24px; border-radius:4px; }
+.step-dot.done { background:var(--primary); }
+.step-title { font-size:0.9rem; font-weight:600; margin-bottom:4px; }
+.step-desc { font-size:0.8rem; color:var(--muted-foreground); margin-bottom:16px; }
 </style>
 </head>
 <body>
 <div class="auth-card">
   <h1><i data-lucide="brain" style="width:28px;height:28px;"></i> Mindmap Tree</h1>
-  <p class="subtitle">Sign in to access your pods</p>
+  <p class="subtitle" id="subtitle">Sign in to access your pods</p>
 
-  <div class="tabs">
+  <div class="tabs" id="tabs">
     <button class="tab active" id="tab-signin" onclick="showTab('signin')">Sign In</button>
     <button class="tab" id="tab-signup" onclick="showTab('signup')">Sign Up</button>
-    <button class="tab" id="tab-reset" onclick="showTab('reset')">Reset</button>
   </div>
 
   <div id="error" class="error-msg"></div>
   <div id="success" class="success-msg"></div>
 
-  <!-- Sign In Form -->
+  <!-- Sign In -->
   <form id="form-signin" onsubmit="handleSignIn(event)">
     <div class="field">
       <label>Email</label>
@@ -96,14 +113,15 @@ body {
       <label>Password</label>
       <input type="password" id="si-password" required placeholder="Enter password">
     </div>
+    <a class="forgot-link" onclick="startForgot()">Forgot Password?</a>
     <button type="submit" class="btn btn-primary" id="btn-signin"><i data-lucide="log-in" style="width:16px;height:16px;"></i> Sign In</button>
   </form>
 
-  <!-- Sign Up Form -->
+  <!-- Sign Up -->
   <form id="form-signup" class="hidden" onsubmit="handleSignUp(event)">
     <div class="field">
       <label>Name</label>
-      <input type="text" id="su-name" required placeholder="Your name">
+      <input type="text" id="su-name" required placeholder="Your full name">
     </div>
     <div class="field">
       <label>Email</label>
@@ -116,26 +134,52 @@ body {
     <button type="submit" class="btn btn-primary" id="btn-signup"><i data-lucide="user-plus" style="width:16px;height:16px;"></i> Sign Up</button>
   </form>
 
-  <!-- Reset Password Form -->
-  <form id="form-reset" class="hidden" onsubmit="handleReset(event)">
-    <div class="field">
-      <label>Email</label>
-      <input type="email" id="rs-email" required placeholder="you@example.com">
+  <!-- Forgot Password — Step-by-step -->
+  <div id="form-forgot" class="hidden">
+    <a class="back-link" onclick="showTab('signin')"><i data-lucide="arrow-left" style="width:14px;height:14px;"></i> Back to Sign In</a>
+    <div class="steps" id="forgot-steps">
+      <div class="step-dot active" id="dot-1"></div>
+      <div class="step-dot" id="dot-2"></div>
+      <div class="step-dot" id="dot-3"></div>
     </div>
-    <div class="field">
-      <label>Your Registered Name (for verification)</label>
-      <input type="text" id="rs-name" required placeholder="Exact name you signed up with">
+
+    <!-- Step 1: Email -->
+    <div id="forgot-step1">
+      <div class="step-title">Step 1: Find your account</div>
+      <div class="step-desc">Enter the email you registered with</div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="fg-email" required placeholder="you@example.com">
+      </div>
+      <button class="btn btn-primary" id="btn-fg1" onclick="forgotStep1()"><i data-lucide="search" style="width:16px;height:16px;"></i> Find Account</button>
     </div>
-    <div class="field">
-      <label>New Password</label>
-      <input type="password" id="rs-password" required minlength="4" placeholder="Min 4 characters">
+
+    <!-- Step 2: Verify identity -->
+    <div id="forgot-step2" class="hidden">
+      <div class="step-title">Step 2: Verify your identity</div>
+      <div class="step-desc">Enter your registered name to confirm it's you</div>
+      <div class="field">
+        <label>Your Registered Name</label>
+        <input type="text" id="fg-name" required placeholder="Exact name you signed up with">
+      </div>
+      <button class="btn btn-primary" id="btn-fg2" onclick="forgotStep2()"><i data-lucide="shield-check" style="width:16px;height:16px;"></i> Verify</button>
     </div>
-    <div class="field">
-      <label>Confirm New Password</label>
-      <input type="password" id="rs-password2" required minlength="4" placeholder="Repeat new password">
+
+    <!-- Step 3: New password -->
+    <div id="forgot-step3" class="hidden">
+      <div class="step-title">Step 3: Set new password</div>
+      <div class="step-desc">Choose a strong new password</div>
+      <div class="field">
+        <label>New Password</label>
+        <input type="password" id="fg-pass1" required minlength="4" placeholder="Min 4 characters">
+      </div>
+      <div class="field">
+        <label>Confirm Password</label>
+        <input type="password" id="fg-pass2" required minlength="4" placeholder="Repeat password">
+      </div>
+      <button class="btn btn-primary" id="btn-fg3" onclick="forgotStep3()"><i data-lucide="key-round" style="width:16px;height:16px;"></i> Reset Password</button>
     </div>
-    <button type="submit" class="btn btn-primary" id="btn-reset"><i data-lucide="key-round" style="width:16px;height:16px;"></i> Reset Password</button>
-  </form>
+  </div>
 </div>
 
 <script>
@@ -145,28 +189,31 @@ if (localStorage.getItem('mindmap_token')) {
   window.location.href = '/';
 }
 
+var forgotEmail = '';
+
 function showTab(tab) {
   document.getElementById('tab-signin').classList.toggle('active', tab === 'signin');
   document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
-  document.getElementById('tab-reset').classList.toggle('active', tab === 'reset');
   document.getElementById('form-signin').classList.toggle('hidden', tab !== 'signin');
   document.getElementById('form-signup').classList.toggle('hidden', tab !== 'signup');
-  document.getElementById('form-reset').classList.toggle('hidden', tab !== 'reset');
+  document.getElementById('form-forgot').classList.toggle('hidden', tab !== 'forgot');
+  document.getElementById('tabs').classList.toggle('hidden', tab === 'forgot');
+  document.getElementById('subtitle').textContent = tab === 'forgot' ? 'Reset your password' : 'Sign in to access your pods';
   hideMessages();
+  if (tab === 'forgot') resetForgotSteps();
+  lucide.createIcons();
 }
 
 function hideMessages() {
   document.getElementById('error').classList.remove('show');
   document.getElementById('success').classList.remove('show');
 }
-
 function showError(msg) {
   hideMessages();
   var el = document.getElementById('error');
   el.textContent = msg;
   el.classList.add('show');
 }
-
 function showSuccess(msg) {
   hideMessages();
   var el = document.getElementById('success');
@@ -177,104 +224,149 @@ function showSuccess(msg) {
 function apiCall(url, body) {
   return fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Bypass-Tunnel-Reminder': 'true'
-    },
+    headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
     body: JSON.stringify(body)
   }).then(function(r) {
     var ct = r.headers.get('content-type') || '';
-    if (!ct.includes('application/json')) {
-      throw new Error('Server returned non-JSON response. Please refresh and try again.');
-    }
+    if (!ct.includes('application/json')) throw new Error('Server error. Please refresh and try again.');
     return r.json().then(function(d) { return { ok: r.ok, data: d }; });
   });
 }
 
+/* ── Sign In ── */
 function handleSignIn(e) {
-  e.preventDefault();
-  hideMessages();
+  e.preventDefault(); hideMessages();
   var btn = document.getElementById('btn-signin');
-  btn.disabled = true;
-  btn.innerHTML = 'Signing in...';
-
-  var email = document.getElementById('si-email').value;
-  var password = document.getElementById('si-password').value;
-
-  apiCall('/api/auth/signin', { email: email, password: password })
-  .then(function(r) {
-    btn.disabled = false;
-    btn.innerHTML = '<i data-lucide="log-in" style="width:16px;height:16px;"></i> Sign In';
-    lucide.createIcons();
+  btn.disabled = true; btn.innerHTML = 'Signing in...';
+  apiCall('/api/auth/signin', {
+    email: document.getElementById('si-email').value,
+    password: document.getElementById('si-password').value
+  }).then(function(r) {
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="log-in" style="width:16px;height:16px;"></i> Sign In'; lucide.createIcons();
     if (!r.ok) return showError(r.data.error || 'Sign in failed');
     localStorage.setItem('mindmap_token', r.data.token);
     localStorage.setItem('mindmap_user', JSON.stringify(r.data.user));
     showSuccess('Signed in! Redirecting...');
     setTimeout(function() { window.location.href = '/'; }, 500);
   }).catch(function(err) {
-    btn.disabled = false;
-    btn.innerHTML = '<i data-lucide="log-in" style="width:16px;height:16px;"></i> Sign In';
-    lucide.createIcons();
-    showError(err.message || 'Network error. Check your connection.');
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="log-in" style="width:16px;height:16px;"></i> Sign In'; lucide.createIcons();
+    showError(err.message);
   });
 }
 
+/* ── Sign Up ── */
 function handleSignUp(e) {
-  e.preventDefault();
-  hideMessages();
+  e.preventDefault(); hideMessages();
   var btn = document.getElementById('btn-signup');
-  btn.disabled = true;
-  btn.innerHTML = 'Creating account...';
-
-  var name = document.getElementById('su-name').value;
-  var email = document.getElementById('su-email').value;
-  var password = document.getElementById('su-password').value;
-
-  apiCall('/api/auth/signup', { name: name, email: email, password: password })
-  .then(function(r) {
-    btn.disabled = false;
-    btn.innerHTML = '<i data-lucide="user-plus" style="width:16px;height:16px;"></i> Sign Up';
-    lucide.createIcons();
+  btn.disabled = true; btn.innerHTML = 'Creating account...';
+  apiCall('/api/auth/signup', {
+    name: document.getElementById('su-name').value,
+    email: document.getElementById('su-email').value,
+    password: document.getElementById('su-password').value
+  }).then(function(r) {
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="user-plus" style="width:16px;height:16px;"></i> Sign Up'; lucide.createIcons();
     if (!r.ok) return showError(r.data.error || 'Sign up failed');
     localStorage.setItem('mindmap_token', r.data.token);
     localStorage.setItem('mindmap_user', JSON.stringify(r.data.user));
     showSuccess('Account created! Redirecting...');
     setTimeout(function() { window.location.href = '/'; }, 500);
   }).catch(function(err) {
-    btn.disabled = false;
-    btn.innerHTML = '<i data-lucide="user-plus" style="width:16px;height:16px;"></i> Sign Up';
-    lucide.createIcons();
-    showError(err.message || 'Network error. Check your connection.');
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="user-plus" style="width:16px;height:16px;"></i> Sign Up'; lucide.createIcons();
+    showError(err.message);
   });
 }
 
-function handleReset(e) {
-  e.preventDefault();
+/* ── Forgot Password Flow ── */
+function startForgot() {
+  showTab('forgot');
+  var email = document.getElementById('si-email').value;
+  if (email) document.getElementById('fg-email').value = email;
+  document.getElementById('fg-email').focus();
+}
+
+function resetForgotSteps() {
+  document.getElementById('forgot-step1').classList.remove('hidden');
+  document.getElementById('forgot-step2').classList.add('hidden');
+  document.getElementById('forgot-step3').classList.add('hidden');
+  setDots(1);
+}
+
+function setDots(step) {
+  for (var i = 1; i <= 3; i++) {
+    var dot = document.getElementById('dot-' + i);
+    dot.className = 'step-dot' + (i === step ? ' active' : (i < step ? ' done' : ''));
+  }
+}
+
+function forgotStep1() {
   hideMessages();
-  var password = document.getElementById('rs-password').value;
-  var password2 = document.getElementById('rs-password2').value;
-  if (password !== password2) { showError('Passwords do not match'); return; }
+  forgotEmail = document.getElementById('fg-email').value.trim();
+  if (!forgotEmail) { showError('Enter your email'); return; }
+  var btn = document.getElementById('btn-fg1');
+  btn.disabled = true; btn.innerHTML = 'Checking...';
 
-  var btn = document.getElementById('btn-reset');
-  btn.disabled = true;
-  btn.innerHTML = 'Resetting...';
-
-  var email = document.getElementById('rs-email').value;
-  var name = document.getElementById('rs-name').value;
-
-  apiCall('/api/auth/reset-password', { email: email, name: name, password: password })
+  apiCall('/api/auth/check-email', { email: forgotEmail })
   .then(function(r) {
-    btn.disabled = false;
-    btn.innerHTML = '<i data-lucide="key-round" style="width:16px;height:16px;"></i> Reset Password';
-    lucide.createIcons();
-    if (!r.ok) return showError(r.data.error || 'Reset failed');
-    showSuccess('Password reset! You can now sign in.');
-    setTimeout(function() { showTab('signin'); }, 1500);
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="search" style="width:16px;height:16px;"></i> Find Account'; lucide.createIcons();
+    if (!r.ok) return showError(r.data.error);
+    showSuccess('Account found! Now verify your identity.');
+    document.getElementById('forgot-step1').classList.add('hidden');
+    document.getElementById('forgot-step2').classList.remove('hidden');
+    setDots(2);
+    document.getElementById('fg-name').focus();
   }).catch(function(err) {
-    btn.disabled = false;
-    btn.innerHTML = '<i data-lucide="key-round" style="width:16px;height:16px;"></i> Reset Password';
-    lucide.createIcons();
-    showError(err.message || 'Network error.');
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="search" style="width:16px;height:16px;"></i> Find Account'; lucide.createIcons();
+    showError(err.message);
+  });
+}
+
+function forgotStep2() {
+  hideMessages();
+  var name = document.getElementById('fg-name').value.trim();
+  if (!name) { showError('Enter your name'); return; }
+  var btn = document.getElementById('btn-fg2');
+  btn.disabled = true; btn.innerHTML = 'Verifying...';
+
+  apiCall('/api/auth/verify-identity', { email: forgotEmail, name: name })
+  .then(function(r) {
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="shield-check" style="width:16px;height:16px;"></i> Verify'; lucide.createIcons();
+    if (!r.ok) return showError(r.data.error);
+    showSuccess('Identity verified! Set your new password.');
+    document.getElementById('forgot-step2').classList.add('hidden');
+    document.getElementById('forgot-step3').classList.remove('hidden');
+    setDots(3);
+    document.getElementById('fg-pass1').focus();
+  }).catch(function(err) {
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="shield-check" style="width:16px;height:16px;"></i> Verify'; lucide.createIcons();
+    showError(err.message);
+  });
+}
+
+function forgotStep3() {
+  hideMessages();
+  var p1 = document.getElementById('fg-pass1').value;
+  var p2 = document.getElementById('fg-pass2').value;
+  if (p1.length < 4) { showError('Password must be at least 4 characters'); return; }
+  if (p1 !== p2) { showError('Passwords do not match'); return; }
+  var btn = document.getElementById('btn-fg3');
+  btn.disabled = true; btn.innerHTML = 'Resetting...';
+
+  apiCall('/api/auth/reset-password', {
+    email: forgotEmail,
+    name: document.getElementById('fg-name').value.trim(),
+    password: p1
+  }).then(function(r) {
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="key-round" style="width:16px;height:16px;"></i> Reset Password'; lucide.createIcons();
+    if (!r.ok) return showError(r.data.error);
+    showSuccess('Password reset successfully! Redirecting to sign in...');
+    setTimeout(function() {
+      showTab('signin');
+      document.getElementById('si-email').value = forgotEmail;
+      document.getElementById('si-password').focus();
+    }, 2000);
+  }).catch(function(err) {
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="key-round" style="width:16px;height:16px;"></i> Reset Password'; lucide.createIcons();
+    showError(err.message);
   });
 }
 </script>
