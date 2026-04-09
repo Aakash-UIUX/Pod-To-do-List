@@ -562,7 +562,9 @@ function loadDate(date) {
   authFetch(podBase() + '/data/' + encodeURIComponent(currentModule) + '/' + date)
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      rootTitle = data.rootTitle || 'My Project';
+      var pod = allPods.find(function(p) { return p.id === currentPodId; });
+      var podName = pod ? pod.name : 'My Project';
+      rootTitle = data.rootTitle || podName;
       modules = data.modules || [];
       dataSaved = data._saved === true;
       dataCarriedFrom = data._from || null;
@@ -572,9 +574,12 @@ function loadDate(date) {
       updateSaveIndicator();
       render();
       loadSavedDates();
+      // Sync pod tab name with project name
+      syncPodName(rootTitle);
     })
     .catch(function() {
-      rootTitle = 'My Project'; modules = [];
+      var pod = allPods.find(function(p) { return p.id === currentPodId; });
+      rootTitle = pod ? pod.name : 'My Project'; modules = [];
       dataSaved = false; dataCarriedFrom = null; hasUnsavedChanges = false;
       updateReadOnly(); updateSaveIndicator(); render();
     });
@@ -585,6 +590,18 @@ function save() {
   updateSaveIndicator();
 }
 
+function syncPodName(name) {
+  if (!currentPodId || !name) return;
+  var pod = allPods.find(function(p) { return p.id === currentPodId; });
+  if (!pod || pod.name === name || !pod.isMember) return;
+  // Update pod name to match project name
+  pod.name = name;
+  renderPodTabs();
+  authFetch('/api/pods/' + currentPodId, {
+    method: 'PUT', body: JSON.stringify({ name: name })
+  }).catch(function() {});
+}
+
 function saveData() {
   if (!currentPodId) return;
   var payload = { rootTitle: rootTitle, modules: modules };
@@ -593,6 +610,7 @@ function saveData() {
   }).then(function() {
     dataSaved = true; dataCarriedFrom = null; hasUnsavedChanges = false;
     updateSaveIndicator(); loadSavedDates();
+    syncPodName(rootTitle);
     toast('Data saved for ' + currentDate);
   });
 }
@@ -1087,10 +1105,7 @@ function confirmModal() {
     if (!v) return;
     rootTitle = v;
     render(); save();
-    // Also rename the pod tab to match project name
-    authFetch('/api/pods/' + currentPodId, {
-      method: 'PUT', body: JSON.stringify({ name: v })
-    }).then(function() { loadPods(); });
+    syncPodName(v);
     toast('Project renamed');
   }
   else if (modalMode === 'add-section') {
