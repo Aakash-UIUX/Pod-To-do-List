@@ -142,7 +142,7 @@ app.post('/api/auth/signup', async (req, res) => {
     const token = signToken(user);
 
     // Create default pod
-    const podInsert = await getDB().execute({ sql: 'INSERT INTO pods(name, created_by) VALUES(?,?)', args: ['My Pod', user.id] });
+    const podInsert = await getDB().execute({ sql: 'INSERT INTO pods(name, created_by) VALUES(?,?)', args: [name.trim() + "'s Project", user.id] });
     const podId = Number(podInsert.lastInsertRowid);
     await getDB().execute({ sql: 'INSERT INTO pod_members(pod_id, user_id, role) VALUES(?,?,?)', args: [podId, user.id, 'owner'] });
     await getDB().execute({ sql: 'INSERT OR IGNORE INTO modules(pod_id, name) VALUES(?,?)', args: [podId, 'default'] });
@@ -231,16 +231,19 @@ app.get('/api/auth/me', auth, async (req, res) => {
 // ══════════════════════════════════════
 
 // List ALL pods — everyone can see, with isMember flag
+// Display name = latest rootTitle from saved data (falls back to pod name)
 app.get('/api/pods', auth, async (req, res) => {
   const r = await getDB().execute({
     sql: `SELECT p.id, p.name, p.created_by,
       (SELECT COUNT(*) FROM pod_members WHERE pod_id=p.id) as member_count,
-      (SELECT COUNT(*) FROM pod_members WHERE pod_id=p.id AND user_id=?) as is_member
+      (SELECT COUNT(*) FROM pod_members WHERE pod_id=p.id AND user_id=?) as is_member,
+      (SELECT root_title FROM snapshots WHERE pod_id=p.id ORDER BY date DESC LIMIT 1) as latest_title
       FROM pods p ORDER BY p.name`,
     args: [req.user.id]
   });
   res.json(r.rows.map(function(row) {
-    return { id: row.id, name: row.name, created_by: row.created_by, member_count: row.member_count, isMember: row.is_member > 0 };
+    var displayName = row.latest_title || row.name;
+    return { id: row.id, name: displayName, dbName: row.name, created_by: row.created_by, member_count: row.member_count, isMember: row.is_member > 0 };
   }));
 });
 
