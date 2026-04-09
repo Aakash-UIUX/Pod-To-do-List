@@ -26,9 +26,12 @@
   --input: #e4e4e7;
   --ring: #0E8BDF;
   --radius: 0.5rem;
-  --complete-bg: #dcfce7; --complete-text: #16a34a;
   --inprogress-bg: #dbeafe; --inprogress-text: #2563eb;
   --hold-bg: #fef9c3; --hold-text: #ca8a04;
+  --done-bg: #dcfce7; --done-text: #16a34a;
+  --pending-bg: #f3e8ff; --pending-text: #7c3aed;
+  --testing-bg: #ffe4e6; --testing-text: #e11d48;
+  --complete-bg: #d1fae5; --complete-text: #059669;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -237,9 +240,12 @@ header h1 .logo-icon { color: var(--primary); }
   font-size: 0.7rem; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap;
   border: 1px solid transparent;
 }
-.badge-complete { background: var(--complete-bg); color: var(--complete-text); border-color: #bbf7d0; }
 .badge-inprogress { background: var(--inprogress-bg); color: var(--inprogress-text); border-color: #bfdbfe; }
 .badge-hold { background: var(--hold-bg); color: var(--hold-text); border-color: #fef08a; }
+.badge-done { background: var(--done-bg); color: var(--done-text); border-color: #bbf7d0; }
+.badge-pending { background: var(--pending-bg); color: var(--pending-text); border-color: #e9d5ff; }
+.badge-testing { background: var(--testing-bg); color: var(--testing-text); border-color: #fecdd3; }
+.badge-complete { background: var(--complete-bg); color: var(--complete-text); border-color: #a7f3d0; }
 
 /* ── Buttons ── */
 .btn {
@@ -858,27 +864,26 @@ function copyUrl(id) {
 
 /* ── Stats & Progress ── */
 function renderStats() {
-  var total = 0, complete = 0, inprogress = 0, hold = 0;
+  var total = 0, sc = { inprogress:0, hold:0, done:0, pending:0, testing:0, complete:0 };
   modules.forEach(function(m) {
     var items = [m].concat(m.kids || []);
-    items.forEach(function(it) {
-      total++;
-      if (it.status === 'complete') complete++;
-      else if (it.status === 'inprogress') inprogress++;
-      else hold++;
-    });
+    items.forEach(function(it) { total++; if (sc[it.status] !== undefined) sc[it.status]++; });
   });
   document.getElementById('stats-bar').innerHTML =
     '<div class="stat-item">' + lucideIcon('layers', 14) + ' <strong>' + modules.length + '</strong> sections</div>' +
-    '<div class="stat-item"><span class="stat-dot" style="background:var(--inprogress-text)"></span> ' + inprogress + ' in progress</div>' +
-    '<div class="stat-item"><span class="stat-dot" style="background:var(--complete-text)"></span> ' + complete + ' complete</div>' +
-    '<div class="stat-item"><span class="stat-dot" style="background:var(--hold-text)"></span> ' + hold + ' hold</div>' +
+    '<div class="stat-item"><span class="stat-dot" style="background:var(--inprogress-text)"></span> ' + sc.inprogress + ' in progress</div>' +
+    '<div class="stat-item"><span class="stat-dot" style="background:var(--done-text)"></span> ' + sc.done + ' done</div>' +
+    '<div class="stat-item"><span class="stat-dot" style="background:var(--pending-text)"></span> ' + sc.pending + ' pending</div>' +
+    '<div class="stat-item"><span class="stat-dot" style="background:var(--testing-text)"></span> ' + sc.testing + ' testing</div>' +
+    '<div class="stat-item"><span class="stat-dot" style="background:var(--hold-text)"></span> ' + sc.hold + ' hold</div>' +
+    '<div class="stat-item"><span class="stat-dot" style="background:var(--complete-text)"></span> ' + sc.complete + ' complete</div>' +
     '<div class="stat-item">' + lucideIcon('hash', 14) + ' Total: <strong>' + total + '</strong></div>';
 
   var pw = document.getElementById('progress-wrap');
+  var finished = sc.done + sc.complete;
   if (total > 0) {
     pw.classList.add('show');
-    var pct = Math.round((complete / total) * 100);
+    var pct = Math.round((finished / total) * 100);
     document.getElementById('progress-bar').style.width = pct + '%';
     document.getElementById('progress-label').textContent = pct + '% complete';
     return pct;
@@ -983,8 +988,11 @@ function formFields(nameVal, statusVal) {
   return '<div class="modal-field"><label>Name</label><input type="text" id="modal-name" value="' + esc(nameVal || '') + '"></div>' +
     '<div class="modal-field"><label>Status</label><select id="modal-status">' +
     '<option value="inprogress"' + (statusVal === 'inprogress' ? ' selected' : '') + '>In Progress</option>' +
-    '<option value="complete"' + (statusVal === 'complete' ? ' selected' : '') + '>Complete</option>' +
+    '<option value="pending"' + (statusVal === 'pending' ? ' selected' : '') + '>Pending</option>' +
+    '<option value="testing"' + (statusVal === 'testing' ? ' selected' : '') + '>Testing</option>' +
     '<option value="hold"' + (statusVal === 'hold' ? ' selected' : '') + '>Hold</option>' +
+    '<option value="done"' + (statusVal === 'done' ? ' selected' : '') + '>Done</option>' +
+    '<option value="complete"' + (statusVal === 'complete' ? ' selected' : '') + '>Complete</option>' +
     '</select></div>';
 }
 
@@ -1274,21 +1282,20 @@ function handleSearch() {
 
 function exportPDF() {
   var statusColors = {
-    complete: { bg: '#dcfce7', text: '#16a34a' },
     inprogress: { bg: '#dbeafe', text: '#2563eb' },
-    hold: { bg: '#fef9c3', text: '#ca8a04' }
+    hold: { bg: '#fef9c3', text: '#ca8a04' },
+    done: { bg: '#dcfce7', text: '#16a34a' },
+    pending: { bg: '#f3e8ff', text: '#7c3aed' },
+    testing: { bg: '#ffe4e6', text: '#e11d48' },
+    complete: { bg: '#d1fae5', text: '#059669' }
   };
 
-  var total = 0, complete = 0, inprogress = 0, hold = 0;
+  var total = 0, sc = { inprogress:0, hold:0, done:0, pending:0, testing:0, complete:0 };
   modules.forEach(function(m) {
-    [m].concat(m.kids || []).forEach(function(it) {
-      total++;
-      if (it.status === 'complete') complete++;
-      else if (it.status === 'inprogress') inprogress++;
-      else hold++;
-    });
+    [m].concat(m.kids || []).forEach(function(it) { total++; if (sc[it.status] !== undefined) sc[it.status]++; });
   });
-  var pct = total > 0 ? Math.round((complete / total) * 100) : 0;
+  var finished = sc.done + sc.complete;
+  var pct = total > 0 ? Math.round((finished / total) * 100) : 0;
 
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">';
   html += '<title>Mindmap Report - ' + currentDate + '</title>';
@@ -1324,9 +1331,12 @@ function exportPDF() {
 
   html += '<div class="stats">';
   html += '<div class="stat"><strong>' + modules.length + '</strong> sections</div>';
-  html += '<div class="stat"><span class="dot" style="background:#2563eb"></span> ' + inprogress + ' in progress</div>';
-  html += '<div class="stat"><span class="dot" style="background:#16a34a"></span> ' + complete + ' complete</div>';
-  html += '<div class="stat"><span class="dot" style="background:#ca8a04"></span> ' + hold + ' hold</div>';
+  html += '<div class="stat"><span class="dot" style="background:#2563eb"></span> ' + sc.inprogress + ' in progress</div>';
+  html += '<div class="stat"><span class="dot" style="background:#16a34a"></span> ' + sc.done + ' done</div>';
+  html += '<div class="stat"><span class="dot" style="background:#7c3aed"></span> ' + sc.pending + ' pending</div>';
+  html += '<div class="stat"><span class="dot" style="background:#e11d48"></span> ' + sc.testing + ' testing</div>';
+  html += '<div class="stat"><span class="dot" style="background:#ca8a04"></span> ' + sc.hold + ' hold</div>';
+  html += '<div class="stat"><span class="dot" style="background:#059669"></span> ' + sc.complete + ' complete</div>';
   html += '<div class="stat">Total: <strong>' + total + '</strong></div>';
   html += '</div>';
 
@@ -1369,21 +1379,20 @@ function exportPDF() {
 
 function exportTreePDF() {
   var sc = {
-    complete: { bg: '#dcfce7', text: '#16a34a', stroke: '#22c55e' },
     inprogress: { bg: '#dbeafe', text: '#2563eb', stroke: '#3b82f6' },
-    hold: { bg: '#fef9c3', text: '#ca8a04', stroke: '#eab308' }
+    hold: { bg: '#fef9c3', text: '#ca8a04', stroke: '#eab308' },
+    done: { bg: '#dcfce7', text: '#16a34a', stroke: '#22c55e' },
+    pending: { bg: '#f3e8ff', text: '#7c3aed', stroke: '#8b5cf6' },
+    testing: { bg: '#ffe4e6', text: '#e11d48', stroke: '#f43f5e' },
+    complete: { bg: '#d1fae5', text: '#059669', stroke: '#10b981' }
   };
 
-  var total = 0, complete = 0, inprogress = 0, hold = 0;
+  var total = 0, counts = { inprogress:0, hold:0, done:0, pending:0, testing:0, complete:0 };
   modules.forEach(function(m) {
-    [m].concat(m.kids || []).forEach(function(it) {
-      total++;
-      if (it.status === 'complete') complete++;
-      else if (it.status === 'inprogress') inprogress++;
-      else hold++;
-    });
+    [m].concat(m.kids || []).forEach(function(it) { total++; if (counts[it.status] !== undefined) counts[it.status]++; });
   });
-  var pct = total > 0 ? Math.round((complete / total) * 100) : 0;
+  var finished = counts.done + counts.complete;
+  var pct = total > 0 ? Math.round((finished / total) * 100) : 0;
 
   // Layout calculation — scale down for many sections to fit A4
   var n = modules.length || 1;
@@ -1452,9 +1461,12 @@ function exportTreePDF() {
   // Stats
   html += '<div class="stats-row">';
   html += '<span><strong>' + modules.length + '</strong> sections</span>';
-  html += '<span><span class="dot" style="background:#2563eb"></span>' + inprogress + ' in progress</span>';
-  html += '<span><span class="dot" style="background:#16a34a"></span>' + complete + ' complete</span>';
-  html += '<span><span class="dot" style="background:#ca8a04"></span>' + hold + ' hold</span>';
+  html += '<span><span class="dot" style="background:#2563eb"></span>' + counts.inprogress + ' in progress</span>';
+  html += '<span><span class="dot" style="background:#16a34a"></span>' + counts.done + ' done</span>';
+  html += '<span><span class="dot" style="background:#7c3aed"></span>' + counts.pending + ' pending</span>';
+  html += '<span><span class="dot" style="background:#e11d48"></span>' + counts.testing + ' testing</span>';
+  html += '<span><span class="dot" style="background:#ca8a04"></span>' + counts.hold + ' hold</span>';
+  html += '<span><span class="dot" style="background:#059669"></span>' + counts.complete + ' complete</span>';
   html += '<span>Total: <strong>' + total + '</strong></span>';
   html += '<span>' + pct + '% complete</span>';
   html += '</div>';
@@ -1560,9 +1572,13 @@ function exportTreePDF() {
 
   // Legend
   html += '<div class="footer">';
-  html += '<span style="margin-right:16px;"><span class="dot" style="width:8px;height:8px;border-radius:50%;display:inline-block;background:#3b82f6;vertical-align:middle;margin-right:4px;"></span>In Progress</span>';
-  html += '<span style="margin-right:16px;"><span class="dot" style="width:8px;height:8px;border-radius:50%;display:inline-block;background:#22c55e;vertical-align:middle;margin-right:4px;"></span>Complete</span>';
-  html += '<span style="margin-right:16px;"><span class="dot" style="width:8px;height:8px;border-radius:50%;display:inline-block;background:#eab308;vertical-align:middle;margin-right:4px;"></span>Hold</span>';
+  var legendDot = 'width:6px;height:6px;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:3px;';
+  html += '<span style="margin-right:10px;"><span style="' + legendDot + 'background:#3b82f6;"></span>In Progress</span>';
+  html += '<span style="margin-right:10px;"><span style="' + legendDot + 'background:#16a34a;"></span>Done</span>';
+  html += '<span style="margin-right:10px;"><span style="' + legendDot + 'background:#8b5cf6;"></span>Pending</span>';
+  html += '<span style="margin-right:10px;"><span style="' + legendDot + 'background:#f43f5e;"></span>Testing</span>';
+  html += '<span style="margin-right:10px;"><span style="' + legendDot + 'background:#eab308;"></span>Hold</span>';
+  html += '<span style="margin-right:10px;"><span style="' + legendDot + 'background:#10b981;"></span>Complete</span>';
   html += '&nbsp;&nbsp;&middot;&nbsp;&nbsp;Mindmap Tree &middot; ' + currentDate;
   html += '</div>';
 
