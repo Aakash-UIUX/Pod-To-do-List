@@ -68,6 +68,17 @@ async function ensureDB() {
     saved_at TEXT DEFAULT (datetime('now')),
     UNIQUE(pod_id, module, date)
   )`);
+
+  // Add is_admin column if it doesn't exist
+  try {
+    await getDB().execute('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0');
+  } catch (e) {
+    // Column already exists — ignore
+  }
+
+  // Set admin user
+  await getDB().execute({ sql: 'UPDATE users SET is_admin=1 WHERE email=?', args: ['aakash.trivedi@visilean.com'] });
+
   dbReady = true;
 }
 
@@ -80,7 +91,7 @@ function hashPass(p) {
 }
 
 function signToken(u) {
-  return jwt.sign({ id: u.id, email: u.email, name: u.name }, JWT_SECRET, { expiresIn: '30d' });
+  return jwt.sign({ id: u.id, email: u.email, name: u.name, is_admin: !!u.is_admin }, JWT_SECRET, { expiresIn: '30d' });
 }
 
 async function auth(req, res, next) {
@@ -102,14 +113,19 @@ async function podRead(req, res, next) {
   if (r.rows.length === 0) return res.status(404).json({ error: 'Pod not found' });
   const m = await getDB().execute({ sql: 'SELECT user_id FROM pod_members WHERE pod_id=? AND user_id=?', args: [podId, req.user.id] });
   req.podId = podId;
-  req.isMember = m.rows.length > 0;
+  req.isMember = m.rows.length > 0 || !!req.user.is_admin;
   next();
 }
 
-// Write access — only pod members can edit
+// Write access — only pod members (or admins) can edit
 async function podWrite(req, res, next) {
   const podId = parseInt(req.params.podId);
   if (!podId) return res.status(400).json({ error: 'Invalid pod' });
+  if (req.user.is_admin) {
+    req.podId = podId;
+    req.isMember = true;
+    return next();
+  }
   const r = await getDB().execute({ sql: 'SELECT user_id FROM pod_members WHERE pod_id=? AND user_id=?', args: [podId, req.user.id] });
   if (r.rows.length === 0) return res.status(403).json({ error: 'Only pod members can edit' });
   req.podId = podId;
@@ -137,7 +153,7 @@ app.post('/api/auth/signup', async (req, res) => {
     if (existing.rows.length > 0) return res.status(400).json({ error: 'Email already registered' });
 
     await getDB().execute({ sql: 'INSERT INTO users(name, email, password_hash) VALUES(?,?,?)', args: [name.trim(), email.toLowerCase().trim(), hashPass(password)] });
-    const userR = await getDB().execute({ sql: 'SELECT id, name, email FROM users WHERE email=?', args: [email.toLowerCase()] });
+    const userR = await getDB().execute({ sql: 'SELECT id, name, email, is_admin FROM users WHERE email=?', args: [email.toLowerCase()] });
     const user = userR.rows[0];
     const token = signToken(user);
 
@@ -157,7 +173,7 @@ app.post('/api/auth/signup', async (req, res) => {
       await getDB().execute({ sql: 'UPDATE snapshots SET pod_id=? WHERE pod_id=0', args: [podId] });
     }
 
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, is_admin: !!user.is_admin } });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -165,12 +181,12 @@ app.post('/api/auth/signin', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-    const r = await getDB().execute({ sql: 'SELECT id, name, email, password_hash FROM users WHERE email=?', args: [email.toLowerCase()] });
+    const r = await getDB().execute({ sql: 'SELECT id, name, email, password_hash, is_admin FROM users WHERE email=?', args: [email.toLowerCase()] });
     if (r.rows.length === 0 || r.rows[0].password_hash !== hashPass(password))
       return res.status(401).json({ error: 'Invalid email or password' });
     const user = r.rows[0];
     const token = signToken(user);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, is_admin: !!user.is_admin } });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -220,10 +236,10 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 app.get('/api/auth/me', auth, async (req, res) => {
-  const r = await getDB().execute({ sql: 'SELECT id, name, email FROM users WHERE id=?', args: [req.user.id] });
+  const r = await getDB().execute({ sql: 'SELECT id, name, email, is_admin FROM users WHERE id=?', args: [req.user.id] });
   if (r.rows.length === 0) return res.status(404).json({ error: 'User not found' });
   const u = r.rows[0];
-  res.json({ id: u.id, name: u.name, email: u.email });
+  res.json({ id: u.id, name: u.name, email: u.email, is_admin: !!u.is_admin });
 });
 
 // ══════════════════════════════════════
@@ -241,9 +257,10 @@ app.get('/api/pods', auth, async (req, res) => {
       FROM pods p ORDER BY p.name`,
     args: [req.user.id]
   });
+  const isAdmin = !!req.user.is_admin;
   res.json(r.rows.map(function(row) {
     var displayName = row.latest_title || row.name;
-    return { id: row.id, name: displayName, dbName: row.name, created_by: row.created_by, member_count: row.member_count, isMember: row.is_member > 0 };
+    return { id: row.id, name: displayName, dbName: row.name, created_by: row.created_by, member_count: row.member_count, isMember: row.is_member > 0 || isAdmin };
   }));
 });
 
@@ -266,9 +283,17 @@ app.put('/api/pods/:podId', auth, podWrite, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Pod delete disabled — data is never removed
+// Pod delete — admin only
 app.delete('/api/pods/:podId', auth, podWrite, async (req, res) => {
-  res.status(403).json({ error: 'Pod deletion is disabled. Data is permanently preserved.' });
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Pod deletion is disabled. Only admins can delete pods.' });
+  try {
+    const podId = req.podId;
+    await getDB().execute({ sql: 'DELETE FROM snapshots WHERE pod_id=?', args: [podId] });
+    await getDB().execute({ sql: 'DELETE FROM modules WHERE pod_id=?', args: [podId] });
+    await getDB().execute({ sql: 'DELETE FROM pod_members WHERE pod_id=?', args: [podId] });
+    await getDB().execute({ sql: 'DELETE FROM pods WHERE id=?', args: [podId] });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Pod Members ──

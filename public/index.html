@@ -425,6 +425,7 @@ body.viewonly .root-node { cursor: default; }
     <span class="user-name" id="user-name-display"></span>
     <button class="btn btn-ghost" onclick="openPodMembers()" title="Pod Members"><i data-lucide="users" style="width:16px;height:16px;"></i></button>
     <button class="btn btn-ghost" onclick="openInvite()" title="Invite"><i data-lucide="user-plus" style="width:16px;height:16px;"></i></button>
+    <button class="btn btn-ghost" id="btn-delete-pod" onclick="openDeletePod()" title="Delete Pod" style="display:none;color:var(--danger);"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></button>
     <button class="btn btn-ghost" onclick="logout()" title="Sign Out"><i data-lucide="log-out" style="width:16px;height:16px;"></i></button>
   </div>
 </header>
@@ -721,6 +722,8 @@ function updateCanEdit(canEdit) {
   } else {
     document.body.classList.add('viewonly');
   }
+  var delBtn = document.getElementById('btn-delete-pod');
+  if (delBtn) delBtn.style.display = (currentUser && currentUser.is_admin) ? '' : 'none';
 }
 
 function openCreatePod() {
@@ -735,7 +738,7 @@ function openCreatePod() {
 function openDeletePod() {
   var pod = allPods.find(function(p) { return p.id === currentPodId; });
   if (!pod) return;
-  if (pod.created_by !== currentUser.id) { toast('Only the pod owner can delete'); return; }
+  if (pod.created_by !== currentUser.id && !currentUser.is_admin) { toast('Only the pod owner or admin can delete'); return; }
   modalMode = 'confirm-delete-pod';
   document.getElementById('modal-title').textContent = 'Delete Pod?';
   document.getElementById('modal-body').innerHTML =
@@ -1179,7 +1182,9 @@ function confirmModal() {
   }
   else if (modalMode === 'confirm-delete-pod') {
     authFetch('/api/pods/' + currentPodId, { method: 'DELETE' })
-      .then(function() {
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error) { toast(data.error); return; }
         toast('Pod deleted');
         currentPodId = 0;
         localStorage.removeItem('mindmap_pod_id');
