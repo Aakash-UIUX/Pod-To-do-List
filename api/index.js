@@ -243,6 +243,33 @@ app.get('/api/auth/me', auth, async (req, res) => {
 });
 
 // ══════════════════════════════════════
+// ADMIN ROUTES
+// ══════════════════════════════════════
+
+// List all users (admin only)
+app.get('/api/admin/users', auth, async (req, res) => {
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Admin access required' });
+  try {
+    const r = await getDB().execute('SELECT id, name, email, is_admin, created_at FROM users ORDER BY name');
+    res.json(r.rows.map(u => ({ id: u.id, name: u.name, email: u.email, is_admin: !!u.is_admin, created_at: u.created_at })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Toggle admin status (admin only)
+app.put('/api/admin/users/:userId/toggle-admin', auth, async (req, res) => {
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Admin access required' });
+  try {
+    const userId = parseInt(req.params.userId);
+    if (userId === req.user.id) return res.status(400).json({ error: "You can't remove your own admin access" });
+    const r = await getDB().execute({ sql: 'SELECT id, is_admin FROM users WHERE id=?', args: [userId] });
+    if (r.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const newVal = r.rows[0].is_admin ? 0 : 1;
+    await getDB().execute({ sql: 'UPDATE users SET is_admin=? WHERE id=?', args: [newVal, userId] });
+    res.json({ ok: true, is_admin: !!newVal });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════
 // POD ROUTES
 // ══════════════════════════════════════
 

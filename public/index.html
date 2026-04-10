@@ -426,6 +426,7 @@ body.viewonly .root-node { cursor: default; }
     <button class="btn btn-ghost" onclick="openPodMembers()" title="Pod Members"><i data-lucide="users" style="width:16px;height:16px;"></i></button>
     <button class="btn btn-ghost" onclick="openInvite()" title="Invite"><i data-lucide="user-plus" style="width:16px;height:16px;"></i></button>
     <button class="btn btn-ghost" id="btn-delete-pod" onclick="openDeletePod()" title="Delete Pod" style="display:none;color:var(--danger);"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></button>
+    <button class="btn btn-ghost" id="btn-manage-admins" onclick="openManageAdmins()" title="Manage Admins" style="display:none;"><i data-lucide="shield" style="width:16px;height:16px;"></i></button>
     <button class="btn btn-ghost" onclick="logout()" title="Sign Out"><i data-lucide="log-out" style="width:16px;height:16px;"></i></button>
   </div>
 </header>
@@ -722,8 +723,11 @@ function updateCanEdit(canEdit) {
   } else {
     document.body.classList.add('viewonly');
   }
+  var isAdmin = currentUser && currentUser.is_admin;
   var delBtn = document.getElementById('btn-delete-pod');
-  if (delBtn) delBtn.style.display = (currentUser && currentUser.is_admin) ? '' : 'none';
+  if (delBtn) delBtn.style.display = isAdmin ? '' : 'none';
+  var adminBtn = document.getElementById('btn-manage-admins');
+  if (adminBtn) adminBtn.style.display = isAdmin ? '' : 'none';
 }
 
 function openCreatePod() {
@@ -746,6 +750,51 @@ function openDeletePod() {
   document.getElementById('modal-confirm').textContent = 'Delete';
   document.getElementById('modal-confirm').className = 'btn btn-danger';
   showModal();
+}
+
+function openManageAdmins() {
+  if (!currentUser || !currentUser.is_admin) return;
+  modalMode = 'manage-admins';
+  document.getElementById('modal-title').textContent = 'Manage Admins';
+  document.getElementById('modal-body').innerHTML = '<p>Loading users...</p>';
+  document.getElementById('modal-confirm').style.display = 'none';
+  showModal();
+  authFetch('/api/admin/users').then(function(r) { return r.json(); })
+    .then(function(users) {
+      var html = users.map(function(u) {
+        var isMe = u.id === currentUser.id;
+        var checked = u.is_admin ? ' checked' : '';
+        var disabled = isMe ? ' disabled' : '';
+        var youBadge = isMe ? ' <span style="font-size:0.65rem;color:var(--muted-foreground);">(you)</span>' : '';
+        return '<div class="member-row">' +
+          '<div class="member-info"><strong>' + esc(u.name) + '</strong>' + youBadge +
+          '<div class="member-email">' + esc(u.email) + '</div></div>' +
+          '<label style="display:flex;align-items:center;gap:6px;cursor:' + (isMe ? 'default' : 'pointer') + ';">' +
+          '<input type="checkbox" onchange="toggleAdmin(' + u.id + ', this)"' + checked + disabled +
+          ' style="width:16px;height:16px;accent-color:var(--accent);">' +
+          '<span style="font-size:0.75rem;font-weight:600;color:' + (u.is_admin ? 'var(--done-text)' : 'var(--muted-foreground)') + ';">' +
+          (u.is_admin ? 'Admin' : 'User') + '</span></label></div>';
+      }).join('');
+      document.getElementById('modal-body').innerHTML = html || '<p>No users found</p>';
+    });
+}
+
+function toggleAdmin(userId, checkbox) {
+  authFetch('/api/admin/users/' + userId + '/toggle-admin', { method: 'PUT' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) { toast(data.error); checkbox.checked = !checkbox.checked; return; }
+      var label = checkbox.parentElement.querySelector('span');
+      if (data.is_admin) {
+        label.textContent = 'Admin';
+        label.style.color = 'var(--done-text)';
+      } else {
+        label.textContent = 'User';
+        label.style.color = 'var(--muted-foreground)';
+      }
+      toast(data.is_admin ? 'Admin access granted' : 'Admin access revoked');
+    })
+    .catch(function() { checkbox.checked = !checkbox.checked; });
 }
 
 function openRenamePod(id, name) {
@@ -1281,7 +1330,105 @@ function handleSearch() {
 
 /* ── Export / Import ── */
 
+function getPrevDate(dateStr) {
+  var d = new Date(dateStr);
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function fetchPrevData() {
+  if (!currentPodId) return Promise.resolve(null);
+  var prevDate = getPrevDate(currentDate);
+  return authFetch(podBase() + '/data/' + encodeURIComponent(currentModule) + '/' + prevDate)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data || (!data._saved && !data._from)) return null;
+      return { rootTitle: data.rootTitle, modules: data.modules || [], date: data._from || prevDate };
+    })
+    .catch(function() { return null; });
+}
+
+function buildChangelog(prevModules, currModules) {
+  var changes = [];
+  // Build lookup maps by ID for previous data
+  var prevMap = {};
+  (prevModules || []).forEach(function(m) {
+    prevMap[m.id] = { label: m.label, status: m.status, type: 'section' };
+    (m.kids || []).forEach(function(k) {
+      prevMap[k.id] = { label: k.label, status: k.status, type: 'task', section: m.label };
+    });
+  });
+  // Build lookup for current
+  var currMap = {};
+  (currModules || []).forEach(function(m) {
+    currMap[m.id] = { label: m.label, status: m.status, type: 'section' };
+    (m.kids || []).forEach(function(k) {
+      currMap[k.id] = { label: k.label, status: k.status, type: 'task', section: m.label };
+    });
+  });
+  // Status changes
+  Object.keys(currMap).forEach(function(id) {
+    var curr = currMap[id];
+    var prev = prevMap[id];
+    if (prev && prev.status !== curr.status) {
+      changes.push({ kind: 'changed', label: curr.label, type: curr.type, section: curr.section || '', from: prev.status, to: curr.status });
+    }
+    if (!prev) {
+      changes.push({ kind: 'added', label: curr.label, type: curr.type, section: curr.section || '' });
+    }
+  });
+  // Removed items
+  Object.keys(prevMap).forEach(function(id) {
+    if (!currMap[id]) {
+      var prev = prevMap[id];
+      changes.push({ kind: 'removed', label: prev.label, type: prev.type, section: prev.section || '' });
+    }
+  });
+  return changes;
+}
+
+function changelogHTML(changes, prevDate, compact) {
+  if (!changes || changes.length === 0) return '';
+  var fontSize = compact ? '8px' : '12px';
+  var titleSize = compact ? '10px' : '14px';
+  var pad = compact ? '8px 10px' : '12px 16px';
+  var html = '<div style="margin-bottom:' + (compact ? '6px' : '20px') + ';border:1.5px solid #c7d2fe;border-radius:8px;overflow:hidden;background:#eef2ff;">';
+  html += '<div style="padding:' + pad + ';background:#e0e7ff;border-bottom:1px solid #c7d2fe;display:flex;align-items:center;gap:6px;">';
+  html += '<span style="font-size:' + titleSize + ';font-weight:700;color:#4338ca;">Changes since ' + (prevDate || 'previous day') + '</span>';
+  html += '<span style="font-size:' + (compact ? '7px' : '11px') + ';color:#6366f1;background:#c7d2fe;padding:1px 8px;border-radius:99px;font-weight:600;">' + changes.length + '</span>';
+  html += '</div>';
+  changes.forEach(function(c) {
+    html += '<div style="display:flex;align-items:center;gap:8px;padding:' + (compact ? '4px 10px' : '6px 16px') + ';border-bottom:1px solid #e0e7ff;font-size:' + fontSize + ';">';
+    if (c.kind === 'changed') {
+      html += '<span style="color:#4338ca;font-weight:600;width:' + (compact ? '8px' : '12px') + ';">&#x2192;</span>';
+      html += '<span style="flex:1;color:#3730a3;"><strong>' + c.label + '</strong>';
+      if (c.section) html += ' <span style="color:#818cf8;font-size:' + (compact ? '7px' : '10px') + ';">(' + c.section + ')</span>';
+      html += '</span>';
+      html += '<span style="text-decoration:line-through;color:#a1a1aa;">' + c.from + '</span>';
+      html += '<span style="color:#4338ca;margin:0 2px;">&rarr;</span>';
+      html += '<span style="font-weight:600;color:#4338ca;">' + c.to + '</span>';
+    } else if (c.kind === 'added') {
+      html += '<span style="color:#16a34a;font-weight:700;width:' + (compact ? '8px' : '12px') + ';">+</span>';
+      html += '<span style="flex:1;color:#15803d;"><strong>' + c.label + '</strong>';
+      if (c.section) html += ' <span style="color:#86efac;font-size:' + (compact ? '7px' : '10px') + ';">(' + c.section + ')</span>';
+      html += '</span>';
+      html += '<span style="color:#16a34a;font-weight:600;">new ' + c.type + '</span>';
+    } else if (c.kind === 'removed') {
+      html += '<span style="color:#dc2626;font-weight:700;width:' + (compact ? '8px' : '12px') + ';">&minus;</span>';
+      html += '<span style="flex:1;color:#b91c1c;text-decoration:line-through;">' + c.label + '</span>';
+      html += '<span style="color:#dc2626;font-weight:600;">removed</span>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
 function exportPDF() {
+  fetchPrevData().then(function(prevData) {
+  var changes = prevData ? buildChangelog(prevData.modules, modules) : [];
+  var prevDate = prevData ? prevData.date : null;
+
   var statusColors = {
     inprogress: { bg: '#dbeafe', text: '#2563eb' },
     hold: { bg: '#fef9c3', text: '#ca8a04' },
@@ -1344,6 +1491,9 @@ function exportPDF() {
   html += '<div class="progress-label">' + pct + '% complete</div>';
   html += '<div class="progress-outer"><div class="progress-inner" style="width:' + pct + '%"></div></div>';
 
+  // Changelog card
+  html += changelogHTML(changes, prevDate, false);
+
   modules.forEach(function(m) {
     var sc = statusColors[m.status] || statusColors.hold;
     html += '<div class="section">';
@@ -1376,9 +1526,14 @@ function exportPDF() {
     printWin.print();
   };
   toast('PDF export opened');
+  }); // end fetchPrevData.then
 }
 
 function exportTreePDF() {
+  fetchPrevData().then(function(prevData) {
+  var changes = prevData ? buildChangelog(prevData.modules, modules) : [];
+  var prevDate = prevData ? prevData.date : null;
+
   var sc = {
     inprogress: { bg: '#dbeafe', text: '#2563eb', stroke: '#3b82f6' },
     hold: { bg: '#fef9c3', text: '#ca8a04', stroke: '#eab308' },
@@ -1472,6 +1627,9 @@ function exportTreePDF() {
   html += '<span>' + pct + '% complete</span>';
   html += '</div>';
   html += '<div class="prog-wrap"><div class="prog-fill" style="width:' + pct + '%"></div></div>';
+
+  // Changelog card (compact for tree layout)
+  html += changelogHTML(changes, prevDate, true);
 
   // SVG Mindmap
   html += '<div class="map-container">';
@@ -1593,6 +1751,7 @@ function exportTreePDF() {
     printWin.print();
   };
   toast('Tree PDF export opened');
+  }); // end fetchPrevData.then
 }
 
 /* ── Keyboard shortcuts ── */
