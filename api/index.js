@@ -295,6 +295,9 @@ app.post('/api/pods', auth, async (req, res) => {
   try {
     const name = (req.body.name || '').trim();
     if (!name) return res.status(400).json({ error: 'Name required' });
+    // Prevent duplicate pod names per user
+    const dup = await getDB().execute({ sql: 'SELECT id FROM pods WHERE name=? AND created_by=?', args: [name, req.user.id] });
+    if (dup.rows.length > 0) return res.json({ ok: true, id: dup.rows[0].id, name, existing: true });
     const podInsert = await getDB().execute({ sql: 'INSERT INTO pods(name, created_by) VALUES(?,?)', args: [name, req.user.id] });
     const podId = Number(podInsert.lastInsertRowid);
     await getDB().execute({ sql: 'INSERT INTO pod_members(pod_id, user_id, role) VALUES(?,?,?)', args: [podId, req.user.id, 'owner'] });

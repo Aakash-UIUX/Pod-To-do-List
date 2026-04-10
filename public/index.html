@@ -1219,15 +1219,18 @@ function confirmModal() {
   else if (modalMode === 'create-pod') {
     var v = document.getElementById('modal-name').value.trim();
     if (!v) return;
+    var confirmBtn = document.getElementById('modal-confirm');
+    confirmBtn.disabled = true;
     authFetch('/api/pods', {
       method: 'POST', body: JSON.stringify({ name: v })
     }).then(function(r) { return r.json(); }).then(function(data) {
+      confirmBtn.disabled = false;
       currentPodId = data.id;
       localStorage.setItem('mindmap_pod_id', currentPodId);
       currentModule = 'default';
       loadPods();
-      toast('Pod "' + v + '" created');
-    });
+      toast(data.existing ? 'Switched to "' + v + '"' : 'Pod "' + v + '" created');
+    }).catch(function() { confirmBtn.disabled = false; });
   }
   else if (modalMode === 'confirm-delete-pod') {
     authFetch('/api/pods/' + currentPodId, { method: 'DELETE' })
