@@ -220,6 +220,25 @@ header h1 .logo-icon { color: var(--primary); }
 .leaf-icon { color: var(--muted-foreground); flex-shrink: 0; display: flex; align-items: center; }
 .leaf-actions { display: flex; gap: 4px; flex-shrink: 0; }
 
+.subtask-list {
+  margin-top: 4px; display: flex; flex-direction: column; gap: 1px;
+  margin-left: 22px; padding-left: 10px; border-left: 1.5px solid var(--border);
+}
+.subtask-row {
+  display: flex; align-items: center; gap: 6px; padding: 4px 10px;
+  border-radius: var(--radius); position: relative; transition: background 0.1s;
+  background: var(--surface2); font-size: 0.78rem;
+}
+.subtask-row:hover { background: #e5e4df; }
+.subtask-label { flex: 1; font-size: 0.78rem; color: var(--muted-foreground); }
+.subtask-actions { display: flex; gap: 3px; flex-shrink: 0; }
+.add-subtask-btn {
+  margin-top: 3px; font-size: 0.7rem; color: var(--muted-foreground); cursor: pointer;
+  background: none; border: none; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px;
+  transition: color 0.15s; font-family: inherit; margin-left: 22px;
+}
+.add-subtask-btn:hover { color: var(--accent); }
+
 .add-task-btn {
   margin-top: 8px; font-size: 0.8rem; color: var(--muted-foreground); cursor: pointer;
   background: none; border: 1px dashed var(--border); border-radius: var(--radius);
@@ -356,7 +375,9 @@ header h1 .logo-icon { color: var(--primary); }
 /* ── Read-only overlay ── */
 body.readonly .branch-actions,
 body.readonly .leaf-actions,
+body.readonly .subtask-actions,
 body.readonly .add-task-btn,
+body.readonly .add-subtask-btn,
 body.readonly .drag-handle,
 body.readonly #btn-add-section { display: none !important; }
 body.readonly #btn-save { display: none !important; }
@@ -365,7 +386,9 @@ body.readonly .root-node { cursor: default; }
 /* ── View-only (non-member) ── */
 body.viewonly .branch-actions,
 body.viewonly .leaf-actions,
+body.viewonly .subtask-actions,
 body.viewonly .add-task-btn,
+body.viewonly .add-subtask-btn,
 body.viewonly .drag-handle,
 body.viewonly #btn-add-section,
 body.viewonly #btn-save { display: none !important; }
@@ -915,6 +938,9 @@ function renderStats() {
   modules.forEach(function(m) {
     var items = [m].concat(m.kids || []);
     items.forEach(function(it) { total++; if (sc[it.status] !== undefined) sc[it.status]++; });
+    (m.kids || []).forEach(function(k) {
+      (k.subtasks || []).forEach(function(st) { total++; if (sc[st.status] !== undefined) sc[st.status]++; });
+    });
   });
   document.getElementById('stats-bar').innerHTML =
     '<div class="stat-item">' + lucideIcon('layers', 14) + ' <strong>' + modules.length + '</strong> sections</div>' +
@@ -999,6 +1025,23 @@ function render() {
           '<button class="icon-btn icon-btn-delete" onclick="deleteTask(\'' + m.id + '\',\'' + k.id + '\')" title="Delete">' + lucideIcon('trash-2', 14) + '</button>' +
           '</div>';
         html += '</div>';
+        // Subtasks
+        if (k.subtasks && k.subtasks.length > 0) {
+          html += '<div class="subtask-list">';
+          k.subtasks.forEach(function(st) {
+            html += '<div class="subtask-row" id="st-' + st.id + '">';
+            html += '<span class="leaf-icon">' + lucideIcon('minus', 12) + '</span>';
+            html += '<span class="subtask-label">' + esc(st.label) + '</span>';
+            html += '<span class="' + badgeClass(st.status) + '" style="font-size:0.65rem;">' + st.status + '</span>';
+            html += '<div class="subtask-actions">' +
+              '<button class="icon-btn icon-btn-edit" onclick="openEditSubtask(\'' + m.id + '\',\'' + k.id + '\',\'' + st.id + '\')" title="Edit" style="padding:2px;">' + lucideIcon('pencil', 12) + '</button>' +
+              '<button class="icon-btn icon-btn-delete" onclick="deleteSubtask(\'' + m.id + '\',\'' + k.id + '\',\'' + st.id + '\')" title="Delete" style="padding:2px;">' + lucideIcon('trash-2', 12) + '</button>' +
+              '</div>';
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+        html += '<button class="add-subtask-btn" onclick="openAddSubtask(\'' + m.id + '\',\'' + k.id + '\')">' + lucideIcon('plus', 12) + ' Subtask</button>';
       });
       html += '</div>';
     }
@@ -1124,6 +1167,48 @@ function deleteTask(sectionId, taskId) {
   showModal();
 }
 
+/* ── Subtask CRUD ── */
+function openAddSubtask(sectionId, taskId) {
+  modalMode = 'add-subtask';
+  modalTarget = { sectionId: sectionId, taskId: taskId };
+  document.getElementById('modal-title').textContent = 'Add Subtask';
+  document.getElementById('modal-body').innerHTML = formFields('', 'inprogress');
+  showModal();
+  document.getElementById('modal-name').focus();
+}
+
+function openEditSubtask(sectionId, taskId, subtaskId) {
+  var m = modules.find(function(x) { return x.id === sectionId; });
+  if (!m) return;
+  var k = (m.kids || []).find(function(x) { return x.id === taskId; });
+  if (!k) return;
+  var st = (k.subtasks || []).find(function(x) { return x.id === subtaskId; });
+  if (!st) return;
+  modalMode = 'edit-subtask';
+  modalTarget = { sectionId: sectionId, taskId: taskId, subtaskId: subtaskId };
+  document.getElementById('modal-title').textContent = 'Edit Subtask';
+  document.getElementById('modal-body').innerHTML = formFields(st.label, st.status);
+  showModal();
+  document.getElementById('modal-name').focus();
+}
+
+function deleteSubtask(sectionId, taskId, subtaskId) {
+  var m = modules.find(function(x) { return x.id === sectionId; });
+  if (!m) return;
+  var k = (m.kids || []).find(function(x) { return x.id === taskId; });
+  if (!k) return;
+  var st = (k.subtasks || []).find(function(x) { return x.id === subtaskId; });
+  if (!st) return;
+  modalMode = 'confirm-delete-subtask';
+  modalTarget = { sectionId: sectionId, taskId: taskId, subtaskId: subtaskId };
+  document.getElementById('modal-title').textContent = 'Delete Subtask?';
+  document.getElementById('modal-body').innerHTML =
+    '<p>This will permanently delete <strong>' + esc(st.label) + '</strong>.</p>';
+  document.getElementById('modal-confirm').textContent = 'Delete';
+  document.getElementById('modal-confirm').className = 'btn btn-danger';
+  showModal();
+}
+
 /* ── Modal confirm handler ── */
 function confirmModal() {
   var nameEl = document.getElementById('modal-name');
@@ -1189,6 +1274,39 @@ function confirmModal() {
       render(); save();
       toast('Task deleted');
     }
+  }
+  else if (modalMode === 'add-subtask') {
+    var v = nameEl.value.trim();
+    if (!v) return;
+    var m = modules.find(function(x) { return x.id === modalTarget.sectionId; });
+    if (!m) return;
+    var k = (m.kids || []).find(function(x) { return x.id === modalTarget.taskId; });
+    if (!k) return;
+    if (!k.subtasks) k.subtasks = [];
+    k.subtasks.push({ id: uid(), label: v, status: statusEl.value });
+    render(); save();
+    toast('Subtask added');
+  }
+  else if (modalMode === 'edit-subtask') {
+    var m = modules.find(function(x) { return x.id === modalTarget.sectionId; });
+    if (!m) return;
+    var k = (m.kids || []).find(function(x) { return x.id === modalTarget.taskId; });
+    if (!k) return;
+    var st = (k.subtasks || []).find(function(x) { return x.id === modalTarget.subtaskId; });
+    if (!st) return;
+    st.label = nameEl.value.trim() || st.label;
+    st.status = statusEl.value;
+    render(); save();
+    toast('Subtask updated');
+  }
+  else if (modalMode === 'confirm-delete-subtask') {
+    var m = modules.find(function(x) { return x.id === modalTarget.sectionId; });
+    if (!m) return;
+    var k = (m.kids || []).find(function(x) { return x.id === modalTarget.taskId; });
+    if (!k) return;
+    k.subtasks = (k.subtasks || []).filter(function(x) { return x.id !== modalTarget.subtaskId; });
+    render(); save();
+    toast('Subtask deleted');
   }
   else if (modalMode === 'create-module') {
     var v = document.getElementById('modal-name').value.trim();
@@ -1299,7 +1417,7 @@ function dropCard(e, targetIdx) {
 function handleSearch() {
   var q = document.getElementById('search-input').value.trim().toLowerCase();
   if (!q) {
-    document.querySelectorAll('.branch-card, .leaf-row, .root-node').forEach(function(el) {
+    document.querySelectorAll('.branch-card, .leaf-row, .subtask-row, .root-node').forEach(function(el) {
       el.classList.remove('dimmed', 'highlighted');
     });
     return;
@@ -1312,7 +1430,21 @@ function handleSearch() {
     (m.kids || []).forEach(function(k) {
       var leaf = document.getElementById('leaf-' + k.id);
       if (!leaf) return;
-      if (k.label.toLowerCase().includes(q)) {
+      var taskMatch = k.label.toLowerCase().includes(q);
+      var subMatch = false;
+      (k.subtasks || []).forEach(function(st) {
+        var stEl = document.getElementById('st-' + st.id);
+        if (!stEl) return;
+        if (st.label.toLowerCase().includes(q)) {
+          stEl.classList.add('highlighted');
+          stEl.classList.remove('dimmed');
+          subMatch = true;
+        } else {
+          stEl.classList.add('dimmed');
+          stEl.classList.remove('highlighted');
+        }
+      });
+      if (taskMatch || subMatch) {
         leaf.classList.add('highlighted');
         leaf.classList.remove('dimmed');
         kidMatch = true;
@@ -1359,6 +1491,9 @@ function buildChangelog(prevModules, currModules) {
     prevMap[m.id] = { label: m.label, status: m.status, type: 'section' };
     (m.kids || []).forEach(function(k) {
       prevMap[k.id] = { label: k.label, status: k.status, type: 'task', section: m.label };
+      (k.subtasks || []).forEach(function(st) {
+        prevMap[st.id] = { label: st.label, status: st.status, type: 'subtask', section: k.label };
+      });
     });
   });
   // Build lookup for current
@@ -1367,6 +1502,9 @@ function buildChangelog(prevModules, currModules) {
     currMap[m.id] = { label: m.label, status: m.status, type: 'section' };
     (m.kids || []).forEach(function(k) {
       currMap[k.id] = { label: k.label, status: k.status, type: 'task', section: m.label };
+      (k.subtasks || []).forEach(function(st) {
+        currMap[st.id] = { label: st.label, status: st.status, type: 'subtask', section: k.label };
+      });
     });
   });
   // Status changes
@@ -1444,6 +1582,9 @@ function exportPDF() {
   var total = 0, sc = { inprogress:0, hold:0, done:0, pending:0, testing:0, complete:0 };
   modules.forEach(function(m) {
     [m].concat(m.kids || []).forEach(function(it) { total++; if (sc[it.status] !== undefined) sc[it.status]++; });
+    (m.kids || []).forEach(function(k) {
+      (k.subtasks || []).forEach(function(st) { total++; if (sc[st.status] !== undefined) sc[st.status]++; });
+    });
   });
   var finished = sc.done + sc.complete;
   var pct = total > 0 ? Math.round((finished / total) * 100) : 0;
@@ -1512,6 +1653,16 @@ function exportPDF() {
         html += '<span class="name">' + esc(k.label) + '</span>';
         html += '<span class="badge" style="background:' + kc.bg + ';color:' + kc.text + '">' + k.status + '</span>';
         html += '</div>';
+        if (k.subtasks && k.subtasks.length > 0) {
+          k.subtasks.forEach(function(st) {
+            var stc = statusColors[st.status] || statusColors.hold;
+            html += '<div class="task-row" style="padding-left:48px;font-size:12px;background:#fafafa;">';
+            html += '<span class="bullet" style="width:4px;height:4px;"></span>';
+            html += '<span class="name" style="font-size:12px;color:#71717a;">' + esc(st.label) + '</span>';
+            html += '<span class="badge" style="background:' + stc.bg + ';color:' + stc.text + ';font-size:10px;">' + st.status + '</span>';
+            html += '</div>';
+          });
+        }
       });
     } else {
       html += '<div class="task-row" style="color:#a1a1aa;padding-left:16px;">No tasks</div>';
@@ -1549,6 +1700,9 @@ function exportTreePDF() {
   var total = 0, counts = { inprogress:0, hold:0, done:0, pending:0, testing:0, complete:0 };
   modules.forEach(function(m) {
     [m].concat(m.kids || []).forEach(function(it) { total++; if (counts[it.status] !== undefined) counts[it.status]++; });
+    (m.kids || []).forEach(function(k) {
+      (k.subtasks || []).forEach(function(st) { total++; if (counts[st.status] !== undefined) counts[st.status]++; });
+    });
   });
   var finished = counts.done + counts.complete;
   var pct = total > 0 ? Math.round((finished / total) * 100) : 0;
