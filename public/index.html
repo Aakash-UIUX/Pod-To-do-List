@@ -1723,12 +1723,37 @@ function exportTreePDF() {
   var taskH = Math.round(24 * scale + 4), taskGap = Math.round(4 * scale + 1);
   var branchGapX = 50, taskGapX = 35;
 
-  // Measure total height per section (section + its tasks)
+  // Subtask dimensions
+  var hasSubtasks = false;
+  var maxSubtaskLabel = 0;
+  modules.forEach(function(m) {
+    (m.kids || []).forEach(function(k) {
+      (k.subtasks || []).forEach(function(st) {
+        hasSubtasks = true;
+        if (st.label.length > maxSubtaskLabel) maxSubtaskLabel = st.label.length;
+      });
+    });
+  });
+  var stW = Math.max(140, Math.min(240, maxSubtaskLabel * 7 + 50));
+  var stH = Math.round(20 * scale + 3);
+  var stGap = Math.round(3 * scale + 1);
+  var stGapX = 30;
+
+  // Measure total height per section (section + its tasks + subtasks)
   var sectionBlocks = modules.map(function(m) {
     var kidCount = (m.kids && m.kids.length) || 0;
-    var kidsH = kidCount > 0 ? kidCount * taskH + (kidCount - 1) * taskGap : 0;
+    var taskEffHeights = (m.kids || []).map(function(k) {
+      var stCount = (k.subtasks || []).length;
+      if (stCount === 0) return taskH;
+      return Math.max(taskH, stCount * stH + (stCount - 1) * stGap);
+    });
+    var kidsH = 0;
+    taskEffHeights.forEach(function(h, i) {
+      kidsH += h;
+      if (i < taskEffHeights.length - 1) kidsH += taskGap;
+    });
     var blockH = Math.max(secH, kidsH);
-    return { mod: m, kidCount: kidCount, kidsH: kidsH, blockH: blockH };
+    return { mod: m, kidCount: kidCount, kidsH: kidsH, blockH: blockH, taskEffHeights: taskEffHeights };
   });
   var totalBranchH = 0;
   sectionBlocks.forEach(function(b, i) {
@@ -1736,7 +1761,7 @@ function exportTreePDF() {
     if (i < sectionBlocks.length - 1) totalBranchH += secGap;
   });
 
-  var svgW = rootW + branchGapX + secW + taskGapX + taskW + 60;
+  var svgW = rootW + branchGapX + secW + taskGapX + taskW + (hasSubtasks ? stGapX + stW : 0) + 60;
   var svgH = Math.max(totalBranchH + 80, rootH + 80);
   var headerH = 120;
 
@@ -1846,11 +1871,13 @@ function exportTreePDF() {
     if (block.kidCount > 0) {
       var secRightX = secStartX + secW;
       var tasksTopY = secCenterY - block.kidsH / 2;
+      var taskCurY = tasksTopY;
 
       m.kids.forEach(function(k, ki) {
         var kc = sc[k.status] || sc.hold;
-        var taskY = tasksTopY + ki * (taskH + taskGap);
-        var taskCY = taskY + taskH / 2;
+        var effH = block.taskEffHeights[ki];
+        var taskCY = taskCurY + effH / 2;
+        var taskY = taskCY - taskH / 2;
 
         // Curved line from section to task
         var tMidX = secRightX + (taskStartX - secRightX) / 2;
@@ -1878,6 +1905,50 @@ function exportTreePDF() {
         // Draw task status pill
         html += '<rect x="' + tPillX + '" y="' + tPillY + '" width="' + tPillW + '" height="' + tPillH + '" rx="' + (tPillH/2) + '" fill="' + kc.bg + '" />';
         html += '<text x="' + (tPillX + tPillW/2) + '" y="' + (tPillY + tPillH/2) + '" text-anchor="middle" dominant-baseline="middle" fill="' + kc.text + '" font-size="' + Math.max(6, Math.round(7 * scale)) + '" font-weight="600" font-family="Inter,sans-serif">' + k.status + '</text>';
+
+        // Subtasks
+        var subtasks = k.subtasks || [];
+        if (subtasks.length > 0) {
+          var taskRightX = taskStartX + taskW;
+          var stStartX = taskRightX + stGapX;
+          var stTotalH = subtasks.length * stH + (subtasks.length - 1) * stGap;
+          var stTopY = taskCY - stTotalH / 2;
+
+          subtasks.forEach(function(st, sti) {
+            var stc = sc[st.status] || sc.hold;
+            var stY = stTopY + sti * (stH + stGap);
+            var stCY = stY + stH / 2;
+
+            // Curved line from task to subtask
+            var stMidX = taskRightX + (stStartX - taskRightX) / 2;
+            html += '<path d="M' + taskRightX + ',' + taskCY + ' C' + stMidX + ',' + taskCY + ' ' + stMidX + ',' + stCY + ' ' + stStartX + ',' + stCY + '" fill="none" stroke="' + stc.stroke + '" stroke-width="1" stroke-opacity="0.3" />';
+
+            // Subtask node
+            html += '<rect x="' + stStartX + '" y="' + stY + '" width="' + stW + '" height="' + stH + '" rx="4" fill="#fafafa" stroke="#e4e4e7" stroke-width="0.5" />';
+
+            // Subtask colored dot
+            var stDotR = Math.max(1.5, Math.round(2.5 * scale));
+            html += '<circle cx="' + (stStartX + 8) + '" cy="' + stCY + '" r="' + stDotR + '" fill="' + stc.stroke + '" />';
+
+            // Subtask status pill (compute first for clip width)
+            var stPillH = Math.max(10, Math.round(12 * scale));
+            var stPillW = st.status.length * 4.5 + 8;
+            var stPillX = stStartX + stW - stPillW - 4;
+            var stPillY = stY + (stH - stPillH) / 2;
+
+            // Subtask label — clip with clipPath
+            var stFontSize = Math.max(6, Math.round(8 * scale));
+            var stClipId = 'stc' + si + '_' + ki + '_' + sti;
+            html += '<clipPath id="' + stClipId + '"><rect x="' + (stStartX + 14) + '" y="' + stY + '" width="' + (stW - stPillW - 22) + '" height="' + stH + '" /></clipPath>';
+            html += '<text clip-path="url(#' + stClipId + ')" x="' + (stStartX + 15) + '" y="' + stCY + '" dominant-baseline="middle" fill="#52525b" font-size="' + stFontSize + '" font-family="Inter,sans-serif">' + esc(st.label) + '</text>';
+
+            // Draw subtask status pill
+            html += '<rect x="' + stPillX + '" y="' + stPillY + '" width="' + stPillW + '" height="' + stPillH + '" rx="' + (stPillH/2) + '" fill="' + stc.bg + '" />';
+            html += '<text x="' + (stPillX + stPillW/2) + '" y="' + (stPillY + stPillH/2) + '" text-anchor="middle" dominant-baseline="middle" fill="' + stc.text + '" font-size="' + Math.max(5, Math.round(6 * scale)) + '" font-weight="600" font-family="Inter,sans-serif">' + st.status + '</text>';
+          });
+        }
+
+        taskCurY += effH + taskGap;
       });
     }
 
